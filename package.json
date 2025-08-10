@@ -1,0 +1,28 @@
+{
+  "name": "@stonyx/utils",
+  "keywords": [
+    "stonyx-module"
+  ],
+  "version": "0.0.1",
+  "description": "Utils module for Stonyx Framework",
+  "type": "module",
+  "exports": {
+    "./date": "./src/date.js",
+    "./object": "./src/object.js",
+    "./file": "./src/file.js",
+    "./promise": "./src/promise.js",
+    "./string": "./src/string.js"
+  },
+  "scripts": {
+    "test": "qunit"
+  },
+  "author": "Stone Costa",
+  "license": "Apache-2.0",
+  "contributors": [
+    "Stone Costa <stone.costa@synamicd.com>"
+  ],
+  "devDependencies": {
+    "fs": "^0.0.1-security",
+    "qunit": "^2.24.1"
+  }
+}

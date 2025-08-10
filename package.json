@@ -3,7 +3,7 @@
   "keywords": [
     "stonyx-module"
   ],
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Utils module for Stonyx Framework",
   "type": "module",
   "exports": {

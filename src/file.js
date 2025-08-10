@@ -33,7 +33,10 @@ export async function readFile(filePath, { json, missingFileCallback }) {
 
     return json ? JSON.parse(fileData) : fileData;
   } catch (error) {
-    if (error.code === 'ENOENT' && missingFileCallback) missingFileCallback(filePath);
+    if (error.code === 'ENOENT' && missingFileCallback) {
+      missingFileCallback(filePath);
+      return;
+    }
 
     throw new Error(error);
   }

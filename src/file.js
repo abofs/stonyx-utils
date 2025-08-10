@@ -18,7 +18,7 @@ export async function updateFile(filePath, data, { json }) {
 
     const swapFile = `${filePath}.temp-${getTimestamp()}`;
     await fsp.writeFile(swapFile, json ? objToJson(data) : data);
-    await fsp.rename(swapFile, file);
+    await fsp.rename(swapFile, filePath);
   } catch (error) {
     
     throw new Error(error);

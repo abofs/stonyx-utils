@@ -2,6 +2,10 @@ export function deepCopy(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+export function objToJson(obj) {
+  return JSON.stringify(obj);
+}
+
 export function mergeObject(obj1, obj2) {
   if (Array.isArray(obj1) || Array.isArray(obj2)) throw new Error('Cannot merge arrays.');
   if (typeof obj1 !== 'object' || obj1 === null) return structuredClone(obj2);

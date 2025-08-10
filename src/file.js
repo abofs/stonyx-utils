@@ -1,22 +1,23 @@
 import { getTimestamp } from '@stonyx/utils/date';
 import { kebabCaseToCamelCase } from '@stonyx/utils/string';
+import { objToJson } from '@stonyx/utils/object';
 import { promises as fsp } from 'fs';
 import path from 'path';
 
-export async function createFile(filePath, data) {
+export async function createFile(filePath, data, { json }) {
   try {
-    await fsp.writeFile(filePath, data, 'utf8');
+    await fsp.writeFile(filePath, json ? objToJson(data) : data, 'utf8');
   } catch (error) {
     throw new Error(error);
   }
 }
 
-export async function updateFile(filePath, data) {
+export async function updateFile(filePath, data, { json }) {
   try {
     await fsp.access(filePath);
 
     const swapFile = `${filePath}.temp-${getTimestamp()}`;
-    await fsp.writeFile(swapFile, data);
+    await fsp.writeFile(swapFile, json ? objToJson(data) : data);
     await fsp.rename(swapFile, file);
   } catch (error) {
     
@@ -34,15 +35,23 @@ export async function readFile(filePath, { json, missingFileCallback }) {
     return json ? JSON.parse(fileData) : fileData;
   } catch (error) {
     if (error.code === 'ENOENT' && missingFileCallback) {
-      missingFileCallback(filePath);
-      return;
+      return missingFileCallback(filePath);
     }
 
     throw new Error(error);
   }
 }
 
-export async function deleteFile(filePath) {
+export async function deleteFile(filePath, options) {
+  try {
+    filePath = path.resolve(filePath);
+    
+    await fsp.access(filePath);
+  } catch (error) {
+    if (options?.ignoreAccessFailure) return;
+    throw error;
+  }
+
   await fsp.unlink(filePath);
 }
 

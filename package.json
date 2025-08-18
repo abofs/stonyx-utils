@@ -3,7 +3,7 @@
   "keywords": [
     "stonyx-module"
   ],
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Utils module for Stonyx Framework",
   "type": "module",
   "exports": {
@@ -24,5 +24,6 @@
   "devDependencies": {
     "fs": "^0.0.1-security",
     "qunit": "^2.24.1"
-  }
+  },
+  "dependencies": {}
 }

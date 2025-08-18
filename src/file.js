@@ -4,20 +4,23 @@ import { objToJson } from '@stonyx/utils/object';
 import { promises as fsp } from 'fs';
 import path from 'path';
 
-export async function createFile(filePath, data, { json }) {
+export async function createFile(filePath, data, options={}) {
   try {
-    await fsp.writeFile(filePath, json ? objToJson(data) : data, 'utf8');
+    filePath = path.resolve(filePath);
+
+    await createDirectory(path.dirname(filePath));
+    await fsp.writeFile(filePath, options.json ? objToJson(data) : data, 'utf8');
   } catch (error) {
     throw new Error(error);
   }
 }
 
-export async function updateFile(filePath, data, { json }) {
+export async function updateFile(filePath, data, options={}) {
   try {
     await fsp.access(filePath);
 
     const swapFile = `${filePath}.temp-${getTimestamp()}`;
-    await fsp.writeFile(swapFile, json ? objToJson(data) : data);
+    await fsp.writeFile(swapFile, options.json ? objToJson(data) : data);
     await fsp.rename(swapFile, filePath);
   } catch (error) {
     
@@ -25,15 +28,40 @@ export async function updateFile(filePath, data, { json }) {
   }
 }
 
-export async function readFile(filePath, { json, missingFileCallback }) {
+export async function copyFile(sourcePath, targetPath, options={}) {
+  try {
+    sourcePath = path.resolve(sourcePath);
+    targetPath = path.resolve(targetPath);
+    await fsp.access(sourcePath);
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  try {
+    await fsp.access(targetPath);
+    if (!options.overwrite) return false;
+  } catch {}
+
+  try {
+    await fsp.copyFile(sourcePath, targetPath);
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return true;
+}
+
+export async function readFile(filePath, options={}) {
   try {
     filePath = path.resolve(filePath);
     
     await fsp.access(filePath);
     const fileData = await fsp.readFile(filePath, 'utf8');
 
-    return json ? JSON.parse(fileData) : fileData;
+    return options.json ? JSON.parse(fileData) : fileData;
   } catch (error) {
+    const { missingFileCallback } = options;
+
     if (error.code === 'ENOENT' && missingFileCallback) {
       return missingFileCallback(filePath);
     }
@@ -88,5 +116,15 @@ export async function forEachFileImport(dir, callback, options={}) {
     const output = !options.fullExport ? exported.default : exported;
 
     callback(output, { name, stats, path: filePath });
+  }
+}
+
+export async function fileExists(filePath) {
+  try {
+    filePath = path.resolve(filePath);
+    await fsp.access(filePath);
+    return true;
+  } catch (error) {
+    return false;
   }
 }

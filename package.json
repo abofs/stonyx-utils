@@ -23,7 +23,7 @@
   ],
   "devDependencies": {
     "fs": "^0.0.1-security",
-    "qunit": "^2.24.1"
-  },
-  "dependencies": {}
+    "qunit": "^2.24.1",
+    "sinon": "^21.0.0"
+  }
 }

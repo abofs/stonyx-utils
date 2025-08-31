@@ -23,11 +23,9 @@ export function kebabCaseToPascalCase(str) {
   return kebabToCase(str, true);
 }
 
-export function pluralize(str) {
-  return `${str}s`;
-}
-
 export function generateRandomString(length=8) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   return Array(length).fill('').map(() => characters.charAt(Math.floor(Math.random() * characters.length))).join('');
 }
+
+export { default as pluralize } from './plurarize.js';

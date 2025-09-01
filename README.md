@@ -32,6 +32,19 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 
 ---
 
+## Table of Contents
+
+* [Installation](#installation)
+* [Running the Test Suite](#running-the-test-suite)
+* [File Utils](#file-utils)
+* [Object Utils](#object-utils)
+* [String Utils](#string-utils)
+* [Date Utils](#date-utils)
+* [Promise Utils](#promise-utils)
+* [License](#license)
+
+---
+
 ## Installation
 
 ```bash
@@ -45,20 +58,6 @@ npm install @stonyx/utils
 ```bash
 npm test
 ```
-
----
-
-## Table of Contents
-
-* [Installation](#installation)
-* [Running the Test Suite](#running-the-test-suite)
-* [File Utils](#file-utils)
-* [Object Utils](#object-utils)
-* [String Utils](#string-utils)
-* [Date Utils](#date-utils)
-* [Promise Utils](#promise-utils)
-* [License](#license)
-
 
 ## File Utils
 

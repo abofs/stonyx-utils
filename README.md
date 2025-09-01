@@ -53,12 +53,6 @@ npm install @stonyx/utils
 
 ---
 
-## Running the Test Suite
-
-```bash
-npm test
-```
-
 ## File Utils
 
 The File utils wrap the `path` and `fs` libraries to manipulate the local file system asynchronously with full async/await support. Includes creation, reading, updating, copying, deleting files and directories, checking existence, and dynamic importing via `forEachFileImport`.

@@ -1,3 +1,4 @@
+// --- Irregular nouns ---
 const irregular = {
   person: 'people',
   man: 'men',
@@ -16,16 +17,28 @@ const irregular = {
   appendix: 'appendices',
   index: 'indices',
   criterion: 'criteria',
-  phenomenon: 'phenomena'
+  phenomenon: 'phenomena',
+  die: 'dice',
+  thesis: 'theses',
+  analysis: 'analyses',
+  crisis: 'crises',
+  radius: 'radii',
+  corpus: 'corpora',
 };
 
+// --- Uncountables ---
 const uncountable = new Set([
-  'sheep', 'fish', 'deer', 'series', 'species', 'news', 'information', 'rice'
+  'sheep', 'fish', 'deer', 'series', 'species', 'news', 'information',
+  'rice', 'moose', 'bison', 'salmon', 'aircraft', 'offspring'
 ]);
 
-const fExceptions = new Set(['chief', 'roof', 'belief', 'chef', 'cliff']);
+// --- Exceptions ---
+const fExceptions = new Set(['chief', 'roof', 'belief', 'chef', 'cliff', 'reef', 'proof', 'brief']);
+
+// Keep only true irregular -o exceptions (consonant + o but take just "s")
 const oExceptions = new Set(['piano', 'photo', 'halo', 'canto', 'solo']);
 
+// --- Utility to preserve casing ---
 function applyCasing(original, plural) {
   if (original === original.toUpperCase()) return plural.toUpperCase();
   if (original === original.toLowerCase()) return plural.toLowerCase();
@@ -35,6 +48,40 @@ function applyCasing(original, plural) {
   return plural;
 }
 
+// --- Rule-based pluralization ---
+const rules = [
+  // quiz → quizzes, waltz → waltzes, topaz → topazes
+  [/z$/i, w => (/iz$/i.test(w) ? w + 'zes' : w + 'es')],
+
+  // bus → buses, box → boxes, church → churches, but stomach → stomachs (exclude -ach)
+  [/(s|x|ch|sh)$/i, w => (/ach$/i.test(w) ? w + 's' : w + 'es')],
+
+  // vowel + y → +s (key → keys)
+  [/[aeiou]y$/i, w => w + 's'],
+
+  // consonant + y → -ies (city → cities)
+  [/y$/i, w => w.slice(0, -1) + 'ies'],
+
+  // -fe → -ves (knife → knives), but not chief/roof/etc
+  [/fe$/i, w => (fExceptions.has(w) ? w + 's' : w.slice(0, -2) + 'ves')],
+
+  // -f → -ves (wolf → wolves), but not cliff/etc
+  [/f$/i, w => (fExceptions.has(w) ? w + 's' : w.slice(0, -1) + 'ves')],
+
+  // -sis → -ses (analysis → analyses, thesis → theses)
+  [/sis$/i, w => w.slice(0, -2) + 'ses'],
+
+  // vowel + o → +s (zoo → zoos, video → videos, patio → patios)
+  [/[aeiou]o$/i, w => w + 's'],
+
+  // consonant + o → usually +es, unless in oExceptions
+  [/o$/i, w => (oExceptions.has(w) ? w + 's' : w + 'es')],
+
+  // default: just +s
+  [/$/i, w => w + 's']
+];
+
+// --- Exported pluralizer ---
 export default function pluralize(word) {
   if (typeof word !== 'string' || !/^[a-zA-Z]+$/.test(word)) {
     throw new Error('Input must be a single word containing only letters.');
@@ -44,21 +91,15 @@ export default function pluralize(word) {
 
   if (uncountable.has(lower)) return word;
 
-  // Irregular check
   if (irregular[lower]) {
     return applyCasing(word, irregular[lower]);
   }
 
-  // Rule-based pluralization
-  if (/z$/i.test(lower)) return applyCasing(word, word + word.slice(-1) + 'es'); // quiz → quizzes
-  if (/(s|x|ch|sh)$/i.test(lower)) return applyCasing(word, word + 'es');
-  if (/[aeiou]y$/i.test(lower)) return applyCasing(word, word + 's');
-  if (/y$/i.test(lower)) return applyCasing(word, word.slice(0, -1) + 'ies');
-  if (/fe$/i.test(lower) && !fExceptions.has(lower)) return applyCasing(word, word.slice(0, -2) + 'ves');
-  if (/f$/i.test(lower) && !fExceptions.has(lower)) return applyCasing(word, word.slice(0, -1) + 'ves');
-  if (/o$/i.test(lower)) {
-    return applyCasing(word, oExceptions.has(lower) ? word + 's' : word + 'es');
+  for (const [pattern, transform] of rules) {
+    if (pattern.test(lower)) {
+      return applyCasing(word, transform(lower));
+    }
   }
 
-  return applyCasing(word, word + 's');
+  return word; // fallback (shouldn't hit)
 }

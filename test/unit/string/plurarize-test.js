@@ -49,6 +49,13 @@ module('[Unit] Utils | pluralize', function() {
     assert.strictEqual(pluralize('knife'), 'knives');
   });
 
+  test('handles words ending in o', function(assert) {
+    assert.strictEqual(pluralize('piano'), 'pianos');
+    assert.strictEqual(pluralize('zoo'), 'zoos');
+    assert.strictEqual(pluralize('hero'), 'heroes');
+    assert.strictEqual(pluralize('potato'), 'potatoes');
+  });
+
   test('does not incorrectly pluralize f/fe exceptions', function(assert) {
     assert.strictEqual(pluralize('chief'), 'chiefs'); // not "chieves"
     assert.strictEqual(pluralize('roof'), 'roofs');   // not "rooves"

@@ -83,9 +83,7 @@ const rules = [
 
 // --- Exported pluralizer ---
 export default function pluralize(word) {
-  if (typeof word !== 'string' || !/^[a-zA-Z]+$/.test(word)) {
-    throw new Error('Input must be a single word containing only letters.');
-  }
+  if (typeof word !== 'string' || !/^[a-zA-Z]+$/.test(word)) return word;
 
   const lower = word.toLowerCase();
 

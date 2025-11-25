@@ -86,10 +86,4 @@ module('[Unit] Utils | pluralize', function() {
     assert.strictEqual(pluralize('syllabus'), 'syllabi');
     assert.strictEqual(pluralize('index'), 'indices');
   });
-
-  // --- Input validation ---
-  test('throws on invalid inputs', function(assert) {
-    assert.throws(() => pluralize(''), /Input must be/, 'Empty string not allowed');
-    assert.throws(() => pluralize('two words'), /Input must be/, 'Spaces not allowed');
-  });
 });

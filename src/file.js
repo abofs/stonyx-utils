@@ -107,11 +107,26 @@ export async function forEachFileImport(dir, callback, options={}) {
     const filePath = path.join(dir, file);
     const stats = await fsp.stat(filePath);
 
+    if (options.recursive && stats.isDirectory()) {
+      const newOptions = { ...options };
+      
+      if (options.recursiveNaming) {
+        const pathPrefix = options.rawName ? file : `${kebabCaseToCamelCase(file)}`;
+        newOptions.namePrefix = options.namePrefix ? `${options.namePrefix}${pathPrefix}/` : `${pathPrefix}/`;
+      }
+
+      await forEachFileImport(filePath, callback, newOptions);
+      continue;
+    }
+
     if (!stats.isFile() || !file.endsWith('.js')) continue;
 
     const prefix = process.platform === 'win32' ? 'file://' : '';
     const rawName = file.replace('.js', '');
-    const name = options.rawName ? rawName : kebabCaseToCamelCase(rawName);
+    let name = options.rawName ? rawName : kebabCaseToCamelCase(rawName);
+
+    if (options.namePrefix) name = `${options.namePrefix}${name}`;
+
     const exported = await import(prefix + path.resolve(filePath));
     const output = !options.fullExport ? exported.default : exported;
 

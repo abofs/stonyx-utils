@@ -26,11 +26,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 22.18.0
+          node-version: 24.13.0
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm i
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests
         run: pnpm test

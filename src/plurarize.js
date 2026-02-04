@@ -83,7 +83,14 @@ const rules = [
 
 // --- Exported pluralizer ---
 export default function pluralize(word) {
-  if (typeof word !== 'string' || !/^[a-zA-Z]+$/.test(word)) return word;
+  if (typeof word !== 'string') return word;
+
+  // Handle dasherized strings like "test-model" -> "test-models"
+  if (word.includes('-')) {
+    return [...parts, pluralize(word.split('-').pop())].join('-');
+  }
+
+  if (!/^[a-zA-Z]+$/.test(word)) return word;
 
   const lower = word.toLowerCase();
 

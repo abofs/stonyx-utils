@@ -23,6 +23,10 @@ export function kebabCaseToPascalCase(str) {
   return kebabToCase(str, true);
 }
 
+export function camelCaseToKebabCase(str) {
+  return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
 export function generateRandomString(length=8) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   return Array(length).fill('').map(() => characters.charAt(Math.floor(Math.random() * characters.length))).join('');

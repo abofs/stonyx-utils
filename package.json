@@ -5,6 +5,10 @@
   ],
   "version": "0.2.2",
   "description": "Utils module for Stonyx Framework",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abofs/stonyx-utils"
+  },
   "type": "module",
   "exports": {
     "./date": "./src/date.js",

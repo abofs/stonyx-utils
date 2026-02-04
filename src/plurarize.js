@@ -87,7 +87,10 @@ export default function pluralize(word) {
 
   // Handle dasherized strings like "test-model" -> "test-models"
   if (word.includes('-')) {
-    return [...parts, pluralize(word.split('-').pop())].join('-');
+    const parts = word.split('-');
+    const pluralizedLast = pluralize(parts.pop());
+
+    return [...parts, pluralizedLast].join('-');
   }
 
   if (!/^[a-zA-Z]+$/.test(word)) return word;

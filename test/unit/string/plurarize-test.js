@@ -87,12 +87,4 @@ module('[Unit] Utils | pluralize', function() {
     assert.strictEqual(pluralize('index'), 'indices');
   });
 
-  // --- Dasherized strings ---
-  test('handles dasherized strings by pluralizing the last segment', function(assert) {
-    assert.strictEqual(pluralize('test-model'), 'test-models');
-    assert.strictEqual(pluralize('access-link'), 'access-links');
-    assert.strictEqual(pluralize('user-profile'), 'user-profiles');
-    assert.strictEqual(pluralize('shopping-cart-item'), 'shopping-cart-items');
-    assert.strictEqual(pluralize('wild-goose'), 'wild-geese', 'handles irregular noun in dasherized string');
-  });
 });

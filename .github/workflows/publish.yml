@@ -9,7 +9,6 @@ on:
         required: true
         type: choice
         options:
-          - alpha
           - patch
           - minor
           - major
@@ -23,7 +22,7 @@ on:
     types: [opened, synchronize, reopened]
     branches: [main, dev]
 
-  # Auto-publish stable on merge to main
+  # Auto-publish beta on merge to main
   push:
     branches: [main]
 
@@ -74,7 +73,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "type=alpha" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" = "push" ]; then
-            echo "type=patch" >> $GITHUB_OUTPUT
+            echo "type=beta" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.inputs.custom-version }}" != "" ]; then
             echo "type=custom" >> $GITHUB_OUTPUT
           else
@@ -86,9 +85,63 @@ jobs:
         if: steps.version-type.outputs.type == 'custom'
         run: pnpm version ${{ github.event.inputs.custom-version }} --no-git-tag-version
 
-      - name: Bump version (alpha)
+      - name: Calculate next alpha version
+        id: alpha-version
         if: steps.version-type.outputs.type == 'alpha'
-        run: pnpm version prerelease --preid=alpha --no-git-tag-version
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          node -e "
+            const { execSync } = require('child_process');
+            const pkg = '$PKG_NAME';
+            let latestStable, allVersions;
+            try {
+              latestStable = execSync('npm view ' + pkg + ' dist-tags.latest', { encoding: 'utf8' }).trim();
+              allVersions = JSON.parse(execSync('npm view ' + pkg + ' versions --json', { encoding: 'utf8' }));
+            } catch (e) {
+              latestStable = require('./package.json').version;
+              allVersions = [];
+            }
+            const [maj, min, pat] = latestStable.split('.').map(Number);
+            const nextPatch = maj + '.' + min + '.' + (pat + 1);
+            const prefix = nextPatch + '-alpha.';
+            const existing = allVersions
+              .filter(v => v.startsWith(prefix))
+              .map(v => parseInt(v.slice(prefix.length), 10))
+              .filter(n => !isNaN(n));
+            const next = existing.length ? Math.max(...existing) + 1 : 0;
+            const version = nextPatch + '-alpha.' + next;
+            require('fs').writeFileSync(process.env.GITHUB_OUTPUT, 'version=' + version + '\n', { flag: 'a' });
+          "
+          pnpm version ${{ steps.alpha-version.outputs.version }} --no-git-tag-version
+
+      - name: Calculate next beta version
+        id: beta-version
+        if: steps.version-type.outputs.type == 'beta'
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          node -e "
+            const { execSync } = require('child_process');
+            const pkg = '$PKG_NAME';
+            let latestStable, allVersions;
+            try {
+              latestStable = execSync('npm view ' + pkg + ' dist-tags.latest', { encoding: 'utf8' }).trim();
+              allVersions = JSON.parse(execSync('npm view ' + pkg + ' versions --json', { encoding: 'utf8' }));
+            } catch (e) {
+              latestStable = require('./package.json').version;
+              allVersions = [];
+            }
+            const [maj, min, pat] = latestStable.split('.').map(Number);
+            const nextPatch = maj + '.' + min + '.' + (pat + 1);
+            const prefix = nextPatch + '-beta.';
+            const existing = allVersions
+              .filter(v => v.startsWith(prefix))
+              .map(v => parseInt(v.slice(prefix.length), 10))
+              .filter(n => !isNaN(n));
+            const next = existing.length ? Math.max(...existing) + 1 : 0;
+            const version = nextPatch + '-beta.' + next;
+            require('fs').writeFileSync(process.env.GITHUB_OUTPUT, 'version=' + version + '\n', { flag: 'a' });
+          "
+          pnpm version ${{ steps.beta-version.outputs.version }} --no-git-tag-version
 
       - name: Bump version (patch/minor/major)
         if: steps.version-type.outputs.type == 'patch' || steps.version-type.outputs.type == 'minor' || steps.version-type.outputs.type == 'major'
@@ -103,13 +156,25 @@ jobs:
         if: contains(steps.package-version.outputs.version, 'alpha')
         run: pnpm publish --tag alpha --access public --no-git-checks
 
+      - name: Publish to NPM (beta)
+        if: contains(steps.package-version.outputs.version, 'beta')
+        run: pnpm publish --tag beta --access public --no-git-checks
+
       - name: Publish to NPM (stable)
-        if: "!contains(steps.package-version.outputs.version, 'alpha')"
+        if: "!contains(steps.package-version.outputs.version, 'alpha') && !contains(steps.package-version.outputs.version, 'beta')"
         run: pnpm publish --access public
 
-      # Only commit and tag for stable releases (push to main or manual stable)
-      - name: Commit version bump and create tag
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !contains(steps.package-version.outputs.version, 'alpha'))
+      # Commit beta version bump back to main (no tag — beta is not a stable release)
+      - name: Commit version bump (beta)
+        if: github.event_name == 'push'
+        run: |
+          git add package.json
+          git commit -m "chore: release v${{ steps.package-version.outputs.version }}"
+          git push origin main
+
+      # Commit, tag, and push for stable releases (manual dispatch only)
+      - name: Commit version bump and create tag (stable)
+        if: github.event_name == 'workflow_dispatch' && !contains(steps.package-version.outputs.version, 'alpha') && !contains(steps.package-version.outputs.version, 'beta')
         run: |
           git add package.json
           git commit -m "chore: release v${{ steps.package-version.outputs.version }}"
@@ -117,7 +182,7 @@ jobs:
           git push origin main --tags
 
       - name: Create GitHub Release
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !contains(steps.package-version.outputs.version, 'alpha'))
+        if: github.event_name == 'workflow_dispatch' && !contains(steps.package-version.outputs.version, 'alpha') && !contains(steps.package-version.outputs.version, 'beta')
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

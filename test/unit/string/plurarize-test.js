@@ -86,4 +86,5 @@ module('[Unit] Utils | pluralize', function() {
     assert.strictEqual(pluralize('syllabus'), 'syllabi');
     assert.strictEqual(pluralize('index'), 'indices');
   });
+
 });

@@ -15,6 +15,7 @@
     "./object": "./src/object.js",
     "./file": "./src/file.js",
     "./promise": "./src/promise.js",
+    "./prompt": "./src/prompt.js",
     "./string": "./src/string.js"
   },
   "scripts": {

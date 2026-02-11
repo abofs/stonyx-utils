@@ -25,10 +25,13 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 |             | `getOrSet`              | Get or set value in a Map.                               |
 | **String**  | `kebabCaseToCamelCase`  | Convert kebab-case to camelCase.                         |
 |             | `kebabCaseToPascalCase` | Convert kebab-case to PascalCase.                        |
+|             | `camelCaseToKebabCase`  | Convert camelCase to kebab-case.                         |
 |             | `generateRandomString`  | Generate a random alphanumeric string.                   |
 |             | `pluralize`             | Return plural form of English nouns.                     |
 | **Date**    | `getTimestamp`          | Return current UNIX timestamp in seconds.                |
 | **Promise** | `sleep`                 | Async delay for a given number of seconds.               |
+| **Prompt**  | `confirm`               | Prompt user for y/N confirmation.                        |
+|             | `prompt`                | Prompt user for free-text input.                         |
 
 ---
 
@@ -41,6 +44,7 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 * [String Utils](#string-utils)
 * [Date Utils](#date-utils)
 * [Promise Utils](#promise-utils)
+* [Prompt Utils](#prompt-utils)
 * [License](#license)
 
 ---
@@ -107,6 +111,9 @@ Dynamically imports all `.js` files in a directory and calls `callback(exports, 
 |      `fullExport`     | Boolean |  false  | If true, callback receives all exports, not just default. |
 |       `rawName`       | Boolean |  false  | If true, the file name is not converted to camelCase.     |
 | `ignoreAccessFailure` | Boolean |  false  | If true, directory access errors are ignored.             |
+|      `recursive`      | Boolean |  false  | If true, recurse into subdirectories.                     |
+|   `recursiveNaming`   | Boolean |  false  | If true, prefix imported names with their directory path. |
+|      `namePrefix`     | String  |   `""`  | Manual prefix prepended to each imported name.            |
 
 Example:
 
@@ -217,6 +224,35 @@ Delays execution for the given number of seconds.
 import { sleep } from '@stonyx/utils/promise';
 
 await sleep(2); // waits 2 seconds
+```
+
+---
+
+## Prompt Utils
+
+Interactive CLI prompt helpers built on Node's `readline`.
+
+### Functions
+
+#### `confirm(question, options={})`
+
+Prompts the user with `(y/N)` and resolves to `true` only if the answer is `"y"` (case-insensitive).
+
+* `options.input` — Readable stream (default: `process.stdin`).
+* `options.output` — Writable stream (default: `process.stdout`).
+
+#### `prompt(question, options={})`
+
+Prompts the user with a question and resolves to the trimmed input string.
+
+* `options.input` — Readable stream (default: `process.stdin`).
+* `options.output` — Writable stream (default: `process.stdout`).
+
+```js
+import { confirm, prompt } from '@stonyx/utils/prompt';
+
+const name = await prompt('What is your name?');
+const ok = await confirm('Proceed?');
 ```
 
 ---

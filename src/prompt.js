@@ -1,14 +1,10 @@
 import { createInterface } from 'readline';
 
-function createReadline() {
-  return createInterface({
-    input: process.stdin,
-    output: process.stdout,
+export function confirm(question, { input, output } = {}) {
+  const rl = createInterface({
+    input: input ?? process.stdin,
+    output: output ?? process.stdout,
   });
-}
-
-export function confirm(question) {
-  const rl = createReadline();
 
   return new Promise(resolve => {
     rl.question(`${question} (y/N) `, answer => {
@@ -18,8 +14,11 @@ export function confirm(question) {
   });
 }
 
-export function prompt(question) {
-  const rl = createReadline();
+export function prompt(question, { input, output } = {}) {
+  const rl = createInterface({
+    input: input ?? process.stdin,
+    output: output ?? process.stdout,
+  });
 
   return new Promise(resolve => {
     rl.question(`${question} `, answer => {

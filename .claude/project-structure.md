@@ -1,5 +1,25 @@
 # Project Structure
 
+## Index
+
+- [Overview](#overview)
+- [Tech Stack](#tech-stack)
+- [File Structure](#file-structure)
+- [Package Exports](#package-exports)
+- [Module Documentation](#module-documentation)
+  - [date.js](#srcdate.js)
+  - [file.js](#srcfile.js)
+  - [object.js](#srcobject.js)
+  - [plurarize.js](#srcplurarize.js)
+  - [promise.js](#srcpromise.js)
+  - [prompt.js](#srcprompt.js)
+  - [string.js](#srcstring.js)
+- [Dependencies](#dependencies)
+- [Test Patterns](#test-patterns)
+- [CI/CD](#cicd)
+
+---
+
 ## Overview
 
 `@stonyx/utils` is a utilities module for the Stonyx Framework. It provides pure JavaScript helper functions for file system operations, object manipulation, string transformations, date handling, promises, and interactive CLI prompts.
@@ -26,7 +46,6 @@
 stonyx-utils/
   .claude/                        # Claude project memory
     project-structure.md          # This file
-    improvements.md               # Known issues and improvement ideas
   .github/
     workflows/
       ci.yml                      # CI on PRs to dev/main (reusable workflow)

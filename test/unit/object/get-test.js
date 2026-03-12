@@ -15,19 +15,19 @@ module('[Unit] Object | get', function() {
     assert.strictEqual(get(obj, 'a.b.c'), 42);
   });
 
-  test('returns null for missing top-level property', function(assert) {
+  test('returns undefined for missing top-level property', function(assert) {
     const obj = { a: 1 };
-    assert.strictEqual(get(obj, 'b'), null);
+    assert.strictEqual(get(obj, 'b'), undefined);
   });
 
-  test('returns null for missing nested property', function(assert) {
+  test('returns undefined for missing nested property', function(assert) {
     const obj = { a: { b: 2 } };
-    assert.strictEqual(get(obj, 'a.b.c'), null);
+    assert.strictEqual(get(obj, 'a.b.c'), undefined);
   });
 
-  test('returns null if path points to undefined property', function(assert) {
+  test('returns undefined if path points to undefined property', function(assert) {
     const obj = { a: { b: undefined } };
-    assert.strictEqual(get(obj, 'a.b'), null);
+    assert.strictEqual(get(obj, 'a.b'), undefined);
   });
 
   test('logs error if called with only one argument (failing case)', function(assert) {

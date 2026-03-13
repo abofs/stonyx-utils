@@ -44,7 +44,7 @@ export function get(obj, path) {
   if (typeof path !== 'string') return console.error('The path provided to get must be a string.');
 
   for (const key of path.split('.')) {
-    if (obj[key] === undefined) return null;
+    if (obj[key] === undefined) return;
 
     obj = obj[key];
   }

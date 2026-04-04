@@ -45,7 +45,11 @@
 ```
 stonyx-utils/
   .claude/                        # Claude project memory
+    CLAUDE.md                     # Agent entry point
+  docs/                           # Human-facing documentation
+    index.md                      # Documentation entry point
     project-structure.md          # This file
+    release.md                    # Release instructions
   .github/
     workflows/
       ci.yml                      # CI on PRs to dev/main (reusable workflow)

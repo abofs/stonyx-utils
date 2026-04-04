@@ -25,7 +25,7 @@
 `@stonyx/utils` is a utilities module for the Stonyx Framework. It provides pure JavaScript helper functions for file system operations, object manipulation, string transformations, date handling, promises, and interactive CLI prompts.
 
 - **Package name:** `@stonyx/utils`
-- **Version:** `0.2.3-beta.1`
+- **Version:** see `package.json`
 - **License:** Apache-2.0
 - **Module system:** ES Modules (`"type": "module"`)
 - **Node version:** v24.13.0 (`.nvmrc`)

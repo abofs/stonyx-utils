@@ -42,7 +42,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "pnpm build && qunit",
+    "build:test": "tsc -p tsconfig.test.json",
+    "test": "pnpm build && pnpm build:test && qunit 'dist-test/test/**/*.js'",
     "prepublishOnly": "npm test"
   },
   "publishConfig": {
@@ -56,6 +57,8 @@
   ],
   "devDependencies": {
     "@types/node": "^25.5.2",
+    "@types/qunit": "^2.19.13",
+    "@types/sinon": "^21.0.1",
     "fs": "^0.0.1-security",
     "qunit": "^2.24.1",
     "sinon": "^21.0.0",

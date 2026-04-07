@@ -6,7 +6,7 @@ const { module, test } = QUnit;
 
 module('[Unit] Object | get', function() {
   test('retrieves top-level property', function(assert) {
-    const obj = { a: 1 };
+    const obj: Record<string, number> = { a: 1 };
     assert.strictEqual(get(obj, 'a'), 1);
   });
 
@@ -16,7 +16,7 @@ module('[Unit] Object | get', function() {
   });
 
   test('returns undefined for missing top-level property', function(assert) {
-    const obj = { a: 1 };
+    const obj: Record<string, number> = { a: 1 };
     assert.strictEqual(get(obj, 'b'), undefined);
   });
 
@@ -46,7 +46,7 @@ module('[Unit] Object | get', function() {
 
   test('logs error if path is not a string (failing case)', function(assert) {
     const spy = sinon.spy(console, 'error');
-    get({ a: 1 }, 123);
+    get({ a: 1 }, 123 as unknown as string);
     assert.ok(spy.calledOnceWith('The path provided to get must be a string.'));
     spy.restore();
   });

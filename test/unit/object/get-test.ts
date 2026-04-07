@@ -11,7 +11,7 @@ module('[Unit] Object | get', function() {
   });
 
   test('retrieves nested property', function(assert) {
-    const obj = { a: { b: { c: 42 } } };
+    const obj: Record<string, Record<string, Record<string, number>>> = { a: { b: { c: 42 } } };
     assert.strictEqual(get(obj, 'a.b.c'), 42);
   });
 
@@ -21,12 +21,12 @@ module('[Unit] Object | get', function() {
   });
 
   test('returns undefined for missing nested property', function(assert) {
-    const obj = { a: { b: 2 } };
+    const obj: Record<string, Record<string, number>> = { a: { b: 2 } };
     assert.strictEqual(get(obj, 'a.b.c'), undefined);
   });
 
   test('returns undefined if path points to undefined property', function(assert) {
-    const obj = { a: { b: undefined } };
+    const obj: Record<string, Record<string, undefined>> = { a: { b: undefined } };
     assert.strictEqual(get(obj, 'a.b'), undefined);
   });
 

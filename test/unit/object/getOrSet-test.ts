@@ -19,9 +19,9 @@ module('[Unit] Object | getOrSet', function() {
   });
 
   test('sets and returns default value when key is missing (function default)', function(assert) {
-    const map = new Map<string, Map<string, unknown>>();
-    const defaultFactory = sinon.stub().returns(new Map<string, unknown>());
-    const result: Map<string, unknown> = getOrSet(map, 'nested', defaultFactory);
+    const map = new Map<string, Map<string, string>>();
+    const defaultFactory = sinon.stub().returns(new Map<string, string>());
+    const result: Map<string, string> = getOrSet(map, 'nested', defaultFactory);
 
     assert.ok(result instanceof Map, 'Factory should create a Map');
     assert.strictEqual(map.get('nested'), result, 'Created value should be stored in map');

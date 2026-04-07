@@ -31,13 +31,11 @@ module('[Unit] Object | mergeObject', function() {
   });
 
   test('does not share references (copy-safe)', async function(assert) {
-    const source1 = { a: { nested: 1 } };
-    const source2 = { b: { nested: 2 } };
+    interface Nested { nested: number }
+    const source1: Record<string, Nested> = { a: { nested: 1 } };
+    const source2: Record<string, Nested> = { b: { nested: 2 } };
 
-    const result = mergeObject(source1, source2) as {
-      a: { nested: number };
-      b: { nested: number };
-    };
+    const result = mergeObject(source1, source2) as Record<string, Nested>;
 
     // Mutate result
     result.a.nested = 99;
@@ -51,7 +49,7 @@ module('[Unit] Object | mergeObject', function() {
     const obj1: Record<string, number> = { a: 1, b: 2 };
     const obj2: Record<string, number> = { b: 3, c: 4 };
 
-    const result = mergeObject(obj1, obj2, { ignoreNewKeys: true });
+    const result: Record<string, unknown> = mergeObject(obj1, obj2, { ignoreNewKeys: true });
 
     assert.deepEqual(
       result,
@@ -61,10 +59,10 @@ module('[Unit] Object | mergeObject', function() {
   });
 
   test('ignores new keys recursively when ignoreNewKeys is true', async function(assert) {
-    const obj1 = { a: { x: 1, y: 2 } };
-    const obj2 = { a: { y: 3, z: 4 } };
+    const obj1: Record<string, Record<string, number>> = { a: { x: 1, y: 2 } };
+    const obj2: Record<string, Record<string, number>> = { a: { y: 3, z: 4 } };
 
-    const result = mergeObject(obj1, obj2, { ignoreNewKeys: true });
+    const result: Record<string, unknown> = mergeObject(obj1, obj2, { ignoreNewKeys: true });
 
     assert.deepEqual(
       result,

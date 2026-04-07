@@ -1,7 +1,7 @@
-import Qunit from 'qunit';
+import QUnit from 'qunit';
 import { mergeObject } from '@stonyx/utils/object';
 
-const { module, test } = Qunit;
+const { module, test } = QUnit;
 
 module('[Unit] Object | mergeObject', function() {
   test('works as expected', async function(assert) {
@@ -24,7 +24,7 @@ module('[Unit] Object | mergeObject', function() {
     );
 
     try {
-      mergeObject([], {});
+      mergeObject([] as unknown as Record<string, unknown>, {});
     } catch {
       assert.ok(true, 'Array inputs throws error');
     }
@@ -34,7 +34,10 @@ module('[Unit] Object | mergeObject', function() {
     const source1 = { a: { nested: 1 } };
     const source2 = { b: { nested: 2 } };
 
-    const result = mergeObject(source1, source2);
+    const result = mergeObject(source1, source2) as {
+      a: { nested: number };
+      b: { nested: number };
+    };
 
     // Mutate result
     result.a.nested = 99;
@@ -45,8 +48,8 @@ module('[Unit] Object | mergeObject', function() {
   });
 
   test('respects ignoreNewKeys option', async function(assert) {
-    const obj1 = { a: 1, b: 2 };
-    const obj2 = { b: 3, c: 4 };
+    const obj1: Record<string, number> = { a: 1, b: 2 };
+    const obj2: Record<string, number> = { b: 3, c: 4 };
 
     const result = mergeObject(obj1, obj2, { ignoreNewKeys: true });
 

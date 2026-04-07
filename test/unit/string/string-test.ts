@@ -73,7 +73,7 @@ module('[Unit] Utils | kebabCaseToPascalCase', function() {
 
 module('[Unit] Utils | generateRandomString', function() {
   test('generates string of default length 8', function(assert) {
-    const result = generateRandomString();
+    const result: string = generateRandomString();
     assert.equal(result.length, 8, 'default length is 8');
     assert.ok(/^[A-Za-z0-9]+$/.test(result), 'contains only alphanumeric characters');
   });
@@ -85,9 +85,9 @@ module('[Unit] Utils | generateRandomString', function() {
   });
 
   test('generates different strings on each call', function(assert) {
-    const str1 = generateRandomString(16);
-    const str2 = generateRandomString(16);
-    const str3 = generateRandomString(16);
+    const str1: string = generateRandomString(16);
+    const str2: string = generateRandomString(16);
+    const str3: string = generateRandomString(16);
 
     assert.notEqual(str1, str2, 'first and second strings are different');
     assert.notEqual(str2, str3, 'second and third strings are different');
@@ -95,13 +95,13 @@ module('[Unit] Utils | generateRandomString', function() {
   });
 
   test('only contains valid alphanumeric characters', function(assert) {
-    const result = generateRandomString(100);
+    const result: string = generateRandomString(100);
     assert.ok(/^[A-Za-z0-9]+$/.test(result), 'contains only A-Z, a-z, 0-9');
     assert.notOk(/[^A-Za-z0-9]/.test(result), 'no special characters or spaces');
   });
 
   test('handles edge case of length 1', function(assert) {
-    const result = generateRandomString(1);
+    const result: string = generateRandomString(1);
     assert.equal(result.length, 1);
     assert.ok(/^[A-Za-z0-9]$/.test(result));
   });

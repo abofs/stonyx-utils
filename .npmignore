@@ -5,6 +5,8 @@
 .github/
 test/
 scripts/
+src/
 *.log
 .nvmrc
 .gitignore
+tsconfig.json

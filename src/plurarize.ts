@@ -1,5 +1,5 @@
 // --- Irregular nouns ---
-const irregular = {
+const irregular: Record<string, string> = {
   person: 'people',
   man: 'men',
   woman: 'women',
@@ -39,7 +39,7 @@ const fExceptions = new Set(['chief', 'roof', 'belief', 'chef', 'cliff', 'reef',
 const oExceptions = new Set(['piano', 'photo', 'halo', 'canto', 'solo']);
 
 // --- Utility to preserve casing ---
-function applyCasing(original, plural) {
+function applyCasing(original: string, plural: string): string {
   if (original === original.toUpperCase()) return plural.toUpperCase();
   if (original === original.toLowerCase()) return plural.toLowerCase();
   if (original[0] === original[0].toUpperCase()) {
@@ -49,32 +49,32 @@ function applyCasing(original, plural) {
 }
 
 // --- Rule-based pluralization ---
-const rules = [
-  // quiz → quizzes, waltz → waltzes, topaz → topazes
+const rules: [RegExp, (w: string) => string][] = [
+  // quiz -> quizzes, waltz -> waltzes, topaz -> topazes
   [/z$/i, w => (/iz$/i.test(w) ? w + 'zes' : w + 'es')],
 
-  // bus → buses, box → boxes, church → churches, but stomach → stomachs (exclude -ach)
+  // bus -> buses, box -> boxes, church -> churches, but stomach -> stomachs (exclude -ach)
   [/(s|x|ch|sh)$/i, w => (/ach$/i.test(w) ? w + 's' : w + 'es')],
 
-  // vowel + y → +s (key → keys)
+  // vowel + y -> +s (key -> keys)
   [/[aeiou]y$/i, w => w + 's'],
 
-  // consonant + y → -ies (city → cities)
+  // consonant + y -> -ies (city -> cities)
   [/y$/i, w => w.slice(0, -1) + 'ies'],
 
-  // -fe → -ves (knife → knives), but not chief/roof/etc
+  // -fe -> -ves (knife -> knives), but not chief/roof/etc
   [/fe$/i, w => (fExceptions.has(w) ? w + 's' : w.slice(0, -2) + 'ves')],
 
-  // -f → -ves (wolf → wolves), but not cliff/etc
+  // -f -> -ves (wolf -> wolves), but not cliff/etc
   [/f$/i, w => (fExceptions.has(w) ? w + 's' : w.slice(0, -1) + 'ves')],
 
-  // -sis → -ses (analysis → analyses, thesis → theses)
+  // -sis -> -ses (analysis -> analyses, thesis -> theses)
   [/sis$/i, w => w.slice(0, -2) + 'ses'],
 
-  // vowel + o → +s (zoo → zoos, video → videos, patio → patios)
+  // vowel + o -> +s (zoo -> zoos, video -> videos, patio -> patios)
   [/[aeiou]o$/i, w => w + 's'],
 
-  // consonant + o → usually +es, unless in oExceptions
+  // consonant + o -> usually +es, unless in oExceptions
   [/o$/i, w => (oExceptions.has(w) ? w + 's' : w + 'es')],
 
   // default: just +s
@@ -82,7 +82,7 @@ const rules = [
 ];
 
 // --- Exported pluralizer ---
-export default function pluralize(word) {
+export default function pluralize(word: string): string {
   if (typeof word !== 'string' || !/^[a-zA-Z]+$/.test(word)) return word;
 
   const lower = word.toLowerCase();

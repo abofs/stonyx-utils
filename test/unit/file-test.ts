@@ -38,7 +38,7 @@ module('[Unit] File', function(hooks) {
 
     test('creates a JSON file when option.json is true', async function(assert) {
       await createFile(TMP_JSON_FILE, { foo: 'bar' }, { json: true });
-      const data: Record<string, unknown> = JSON.parse(await fsp.readFile(TMP_JSON_FILE, 'utf8'));
+      const data = JSON.parse(await fsp.readFile(TMP_JSON_FILE, 'utf8')) as { foo: string };
       assert.deepEqual(data, { foo: 'bar' });
     });
   });
@@ -100,7 +100,7 @@ module('[Unit] File', function(hooks) {
 
     test('reads JSON', async function(assert) {
       await createFile(TMP_JSON_FILE, { foo: 'bar' }, { json: true });
-      const result: Record<string, unknown> = await readFile(TMP_JSON_FILE, { json: true });
+      const result = await readFile(TMP_JSON_FILE, { json: true }) as { foo: string };
       assert.deepEqual(result, { foo: 'bar' });
     });
 
@@ -164,7 +164,7 @@ module('[Unit] File', function(hooks) {
       const filePath: string = path.join(IMPORT_DIR, 'hello-world.js');
       await fsp.writeFile(filePath, 'export default "hello";', 'utf8');
 
-      let called = false;
+      let called: boolean = false;
       await forEachFileImport(IMPORT_DIR, (output, meta) => {
         called = true;
         assert.equal(output, 'hello');

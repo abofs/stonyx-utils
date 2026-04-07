@@ -4,12 +4,16 @@ import { objToJson } from './object.js';
 import { promises as fsp } from 'fs';
 import path from 'path';
 
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
+
 interface FileOptions {
   json?: boolean;
 }
 
 interface ReadFileOptions extends FileOptions {
-  missingFileCallback?: (filePath: string) => unknown;
+  missingFileCallback?: (filePath: string) => string | Record<string, unknown>;
 }
 
 interface DeleteFileOptions {
@@ -31,23 +35,23 @@ interface FileImportMeta {
   path: string;
 }
 
-export async function createFile(filePath: string, data: unknown, options: FileOptions = {}): Promise<void> {
+export async function createFile(filePath: string, data: string | Record<string, unknown>, options: FileOptions = {}): Promise<void> {
   try {
     filePath = path.resolve(filePath);
 
     await createDirectory(path.dirname(filePath));
-    await fsp.writeFile(filePath, options.json ? objToJson(data) : data as string, 'utf8');
+    await fsp.writeFile(filePath, options.json ? objToJson(data) : String(data), 'utf8');
   } catch (error) {
     throw new Error(String(error));
   }
 }
 
-export async function updateFile(filePath: string, data: unknown, options: FileOptions = {}): Promise<void> {
+export async function updateFile(filePath: string, data: string | Record<string, unknown>, options: FileOptions = {}): Promise<void> {
   try {
     await fsp.access(filePath);
 
     const swapFile = `${filePath}.temp-${getTimestamp()}`;
-    await fsp.writeFile(swapFile, options.json ? objToJson(data) : data as string);
+    await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data));
     await fsp.rename(swapFile, filePath);
   } catch (error) {
 
@@ -82,18 +86,20 @@ export async function copyFile(sourcePath: string, targetPath: string, options: 
   return true;
 }
 
-export async function readFile(filePath: string, options: ReadFileOptions = {}): Promise<unknown> {
+export async function readFile(filePath: string, options: ReadFileOptions & { json: true }): Promise<Record<string, unknown>>;
+export async function readFile(filePath: string, options?: ReadFileOptions): Promise<string>;
+export async function readFile(filePath: string, options: ReadFileOptions = {}): Promise<string | Record<string, unknown>> {
   try {
     filePath = path.resolve(filePath);
 
     await fsp.access(filePath);
     const fileData = await fsp.readFile(filePath, 'utf8');
 
-    return options.json ? JSON.parse(fileData) : fileData;
+    return options.json ? JSON.parse(fileData) as Record<string, unknown> : fileData;
   } catch (error) {
     const { missingFileCallback } = options;
 
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT' && missingFileCallback) {
+    if (isNodeError(error) && error.code === 'ENOENT' && missingFileCallback) {
       return missingFileCallback(filePath);
     }
 
@@ -122,7 +128,7 @@ export async function createDirectory(dir: string): Promise<void> {
   await fsp.mkdir(dir, { recursive: true });
 }
 
-export async function forEachFileImport(dir: string, callback: (output: unknown, meta: FileImportMeta) => void, options: ForEachFileImportOptions = {}): Promise<void> {
+export async function forEachFileImport(dir: string, callback: (output: unknown, meta: FileImportMeta) => void | Promise<void>, options: ForEachFileImportOptions = {}): Promise<void> {
   if (typeof callback !== 'function') throw new Error('Callback must be valid function');
 
   try {
@@ -170,7 +176,7 @@ export async function fileExists(filePath: string): Promise<boolean> {
     filePath = path.resolve(filePath);
     await fsp.access(filePath);
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

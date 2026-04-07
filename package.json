@@ -11,19 +11,38 @@
   },
   "type": "module",
   "files": [
-    "src",
+    "dist",
     "README.md"
   ],
   "exports": {
-    "./date": "./src/date.js",
-    "./object": "./src/object.js",
-    "./file": "./src/file.js",
-    "./promise": "./src/promise.js",
-    "./prompt": "./src/prompt.js",
-    "./string": "./src/string.js"
+    "./date": {
+      "types": "./dist/date.d.ts",
+      "default": "./dist/date.js"
+    },
+    "./object": {
+      "types": "./dist/object.d.ts",
+      "default": "./dist/object.js"
+    },
+    "./file": {
+      "types": "./dist/file.d.ts",
+      "default": "./dist/file.js"
+    },
+    "./promise": {
+      "types": "./dist/promise.d.ts",
+      "default": "./dist/promise.js"
+    },
+    "./prompt": {
+      "types": "./dist/prompt.d.ts",
+      "default": "./dist/prompt.js"
+    },
+    "./string": {
+      "types": "./dist/string.d.ts",
+      "default": "./dist/string.js"
+    }
   },
   "scripts": {
-    "test": "qunit",
+    "build": "tsc",
+    "test": "pnpm build && qunit",
     "prepublishOnly": "npm test"
   },
   "publishConfig": {
@@ -36,9 +55,10 @@
     "Stone Costa <stone.costa@synamicd.com>"
   ],
   "devDependencies": {
+    "@types/node": "^25.5.2",
     "fs": "^0.0.1-security",
     "qunit": "^2.24.1",
-    "sinon": "^21.0.0"
-  },
-  "dependencies": {}
+    "sinon": "^21.0.0",
+    "typescript": "^5.8.3"
+  }
 }

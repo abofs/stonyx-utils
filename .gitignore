@@ -1,6 +1,9 @@
 # dependencies
 /node_modules/
 
+# build output
+/dist/
+
 # os / IDE
 .vscode/*
 *.vsix%

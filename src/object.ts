@@ -1,8 +1,10 @@
 export function deepCopy<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj));
+  return JSON.parse(JSON.stringify(obj)) as T;
 }
 
-export function objToJson(obj: unknown, format: string | number = '\t'): string {
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export function objToJson(obj: JsonValue | Record<string, unknown>, format: string | number = '\t'): string {
   return JSON.stringify(obj, null, format);
 }
 
@@ -43,7 +45,7 @@ export function mergeObject(obj1: Record<string, unknown>, obj2: Record<string, 
 }
 
 export function get(obj: Record<string, unknown>, path: string): unknown;
-export function get(obj: unknown, path?: unknown): void;
+export function get(obj: unknown, path?: unknown): undefined;
 export function get(obj: unknown, path?: unknown): unknown {
   if (arguments.length !== 2) return console.error('Get must be called with two arguments; an object and a property key.');
   if (!obj) return console.error(`Cannot call get with '${path}' on an undefined object.`);
@@ -51,9 +53,9 @@ export function get(obj: unknown, path?: unknown): unknown {
 
   let current: Record<string, unknown> = obj as Record<string, unknown>;
   for (const key of path.split('.')) {
-    if ((current as Record<string, unknown>)[key] === undefined) return;
+    if (current[key] === undefined) return;
 
-    current = (current as Record<string, unknown>)[key] as Record<string, unknown>;
+    current = current[key] as Record<string, unknown>;
   }
 
   return current;
@@ -62,7 +64,10 @@ export function get(obj: unknown, path?: unknown): unknown {
 export function getOrSet<K, V>(map: Map<K, V>, key: K, defaultValue: V | (() => V)): V {
   if (!(map instanceof Map)) throw new Error('First argument to getOrSet must be a Map.');
 
-  if (!map.has(key)) map.set(key, typeof defaultValue === "function" ? (defaultValue as () => V)() : defaultValue);
+  if (!map.has(key)) {
+    const value = typeof defaultValue === 'function' ? (defaultValue as () => V)() : defaultValue;
+    map.set(key, value);
+  }
 
-  return map.get(key)!;
+  return map.get(key) as V;
 }

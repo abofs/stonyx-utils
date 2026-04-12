@@ -42,7 +42,7 @@ export async function createFile(filePath: string, data: string | Record<string,
     await createDirectory(path.dirname(filePath));
     await fsp.writeFile(filePath, options.json ? objToJson(data) : String(data), 'utf8');
   } catch (error) {
-    throw new Error(String(error));
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -51,11 +51,10 @@ export async function updateFile(filePath: string, data: string | Record<string,
     await fsp.access(filePath);
 
     const swapFile = `${filePath}.temp-${getTimestamp()}`;
-    await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data));
+    await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), 'utf8');
     await fsp.rename(swapFile, filePath);
   } catch (error) {
-
-    throw new Error(String(error));
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -69,18 +68,21 @@ export async function copyFile(sourcePath: string, targetPath: string, options: 
     targetPath = path.resolve(targetPath);
     await fsp.access(sourcePath);
   } catch (error) {
-    throw new Error(String(error));
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   try {
     await fsp.access(targetPath);
     if (!options.overwrite) return false;
-  } catch {}
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') { /* file doesn't exist — proceed with copy */ }
+    else throw error;
+  }
 
   try {
     await fsp.copyFile(sourcePath, targetPath);
   } catch (error) {
-    throw new Error(String(error));
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   return true;
@@ -103,7 +105,7 @@ export async function readFile(filePath: string, options: ReadFileOptions = {}):
       return missingFileCallback(filePath);
     }
 
-    throw new Error(String(error));
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 

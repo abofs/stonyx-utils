@@ -38,6 +38,10 @@
     "./string": {
       "types": "./dist/string.d.ts",
       "default": "./dist/string.js"
+    },
+    "./fuzzy-match": {
+      "types": "./dist/fuzzy-match.d.ts",
+      "default": "./dist/fuzzy-match.js"
     }
   },
   "scripts": {

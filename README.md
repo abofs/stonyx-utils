@@ -4,7 +4,7 @@
 
 # stonyx-utils
 
-Utilities module for the Stonyx Framework. Provides helpers for files, objects, strings, dates, and promises.
+Utilities module for the Stonyx Framework. Provides helpers for files, objects, strings, dates, promises, and prompts.
 
 ---
 

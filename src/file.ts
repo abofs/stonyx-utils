@@ -158,10 +158,10 @@ export async function forEachFileImport(dir: string, callback: (output: unknown,
       continue;
     }
 
-    if (!stats.isFile() || !file.endsWith('.js')) continue;
+    if (!stats.isFile() || !(file.endsWith('.js') || file.endsWith('.ts'))) continue;
 
     const prefix = process.platform === 'win32' ? 'file://' : '';
-    const rawName = file.replace('.js', '');
+    const rawName = file.replace(/\.(js|ts)$/, '');
     let name = options.rawName ? rawName : kebabCaseToCamelCase(rawName);
 
     if (options.namePrefix) name = `${options.namePrefix}${name}`;

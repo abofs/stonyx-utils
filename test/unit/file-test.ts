@@ -174,6 +174,20 @@ module('[Unit] File', function(hooks) {
       assert.ok(called);
     });
 
+    test('calls callback for each .ts file', async function(assert) {
+      const filePath: string = path.join(IMPORT_DIR, 'ts-sample.ts');
+      await fsp.writeFile(filePath, 'export default "from-ts";', 'utf8');
+
+      let called: boolean = false;
+      await forEachFileImport(IMPORT_DIR, (output, meta) => {
+        called = true;
+        assert.equal(output, 'from-ts');
+        assert.equal(meta.name, 'tsSample');
+      });
+
+      assert.ok(called);
+    });
+
     test('returns when directory missing with ignoreAccessFailure', async function(assert) {
       const missingDir: string = path.join(IMPORT_DIR, 'does-not-exist');
       await forEachFileImport(missingDir, () => {

@@ -22,7 +22,7 @@
 
 ## Overview
 
-`@stonyx/utils` is a utilities module for the Stonyx Framework. It provides pure JavaScript helper functions for file system operations, object manipulation, string transformations, date handling, promises, and interactive CLI prompts.
+`@stonyx/utils` is a utilities module for the Stonyx Framework. It provides helper functions for file system operations, object manipulation, string transformations, date handling, promises, and interactive CLI prompts.
 
 - **Package name:** `@stonyx/utils`
 - **Version:** see `package.json`

@@ -1,6 +1,7 @@
 import { getTimestamp } from './date.js';
 import { kebabCaseToCamelCase } from './string.js';
 import { objToJson } from './object.js';
+import fs from 'fs';
 import { promises as fsp } from 'fs';
 import path from 'path';
 
@@ -14,6 +15,7 @@ interface FileOptions {
 
 interface ReadFileOptions extends FileOptions {
   missingFileCallback?: (filePath: string) => string | Record<string, unknown>;
+  encoding?: BufferEncoding | null;
 }
 
 interface DeleteFileOptions {
@@ -88,16 +90,20 @@ export async function copyFile(sourcePath: string, targetPath: string, options: 
   return true;
 }
 
+export async function readFile(filePath: string, options: ReadFileOptions & { encoding: null }): Promise<Buffer>;
 export async function readFile(filePath: string, options: ReadFileOptions & { json: true }): Promise<Record<string, unknown>>;
 export async function readFile(filePath: string, options?: ReadFileOptions): Promise<string>;
-export async function readFile(filePath: string, options: ReadFileOptions = {}): Promise<string | Record<string, unknown>> {
+export async function readFile(filePath: string, options: ReadFileOptions = {}): Promise<string | Buffer | Record<string, unknown>> {
   try {
     filePath = path.resolve(filePath);
 
     await fsp.access(filePath);
-    const fileData = await fsp.readFile(filePath, 'utf8');
+    const encoding = options.encoding === undefined ? 'utf8' : options.encoding;
+    const fileData = await fsp.readFile(filePath, { encoding: encoding as BufferEncoding | null });
 
-    return options.json ? JSON.parse(fileData) as Record<string, unknown> : fileData;
+    if (encoding === null) return fileData as Buffer;
+    if (options.json) return JSON.parse(fileData as string) as Record<string, unknown>;
+    return fileData as string;
   } catch (error) {
     const { missingFileCallback } = options;
 
@@ -122,12 +128,31 @@ export async function deleteFile(filePath: string, options?: DeleteFileOptions):
   await fsp.unlink(filePath);
 }
 
+export function deleteFileSync(filePath: string, options?: DeleteFileOptions): void {
+  try {
+    filePath = path.resolve(filePath);
+    fs.accessSync(filePath);
+  } catch (error) {
+    if (options?.ignoreAccessFailure) return;
+    throw error;
+  }
+  fs.unlinkSync(filePath);
+}
+
 export async function deleteDirectory(dir: string): Promise<void> {
   await fsp.rm(dir, { recursive: true, force: true });
 }
 
 export async function createDirectory(dir: string): Promise<void> {
   await fsp.mkdir(dir, { recursive: true });
+}
+
+export function createReadStream(filePath: string, options?: Parameters<typeof fs.createReadStream>[1]): fs.ReadStream {
+  return fs.createReadStream(path.resolve(filePath), options);
+}
+
+export function createWriteStream(filePath: string, options?: Parameters<typeof fs.createWriteStream>[1]): fs.WriteStream {
+  return fs.createWriteStream(path.resolve(filePath), options);
 }
 
 export async function forEachFileImport(dir: string, callback: (output: unknown, meta: FileImportMeta) => void | Promise<void>, options: ForEachFileImportOptions = {}): Promise<void> {

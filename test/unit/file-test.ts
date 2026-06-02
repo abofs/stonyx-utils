@@ -7,8 +7,11 @@ import {
   copyFile,
   readFile,
   deleteFile,
+  deleteFileSync,
   deleteDirectory,
   createDirectory,
+  createReadStream,
+  createWriteStream,
   forEachFileImport,
   fileExists
 } from '@stonyx/utils/file';
@@ -110,6 +113,20 @@ module('[Unit] File', function(hooks) {
       });
       assert.equal(result, 'fallback');
     });
+
+    test('reads as Buffer when encoding is null', async function(assert) {
+      await createFile(TMP_FILE, 'binary-test');
+      const result = await readFile(TMP_FILE, { encoding: null });
+      assert.ok(Buffer.isBuffer(result), 'result is a Buffer');
+      assert.equal(result.toString('utf8'), 'binary-test', 'buffer contents match');
+    });
+
+    test('still returns string without encoding option (regression)', async function(assert) {
+      await createFile(TMP_FILE, 'text-test');
+      const result = await readFile(TMP_FILE);
+      assert.equal(typeof result, 'string', 'result is a string');
+      assert.equal(result, 'text-test');
+    });
   });
 
   module('deleteFile', function() {
@@ -126,6 +143,28 @@ module('[Unit] File', function(hooks) {
 
     test('ignores access failure when option set', async function(assert) {
       await deleteFile(TMP_FILE, { ignoreAccessFailure: true });
+      assert.ok(true, 'did not throw');
+    });
+  });
+
+  module('deleteFileSync', function() {
+    test('deletes an existing file synchronously', async function(assert) {
+      await createFile(TMP_FILE, 'data');
+      deleteFileSync(TMP_FILE);
+      try {
+        await fsp.access(TMP_FILE);
+        assert.ok(false, 'file should not exist');
+      } catch {
+        assert.ok(true);
+      }
+    });
+
+    test('throws when file does not exist', function(assert) {
+      assert.throws(() => deleteFileSync(TMP_FILE), 'throws for missing file');
+    });
+
+    test('ignores access failure when option set', function(assert) {
+      deleteFileSync(TMP_FILE, { ignoreAccessFailure: true });
       assert.ok(true, 'did not throw');
     });
   });
@@ -150,6 +189,32 @@ module('[Unit] File', function(hooks) {
       await createDirectory(deepDir);
       const stat = await fsp.stat(deepDir);
       assert.ok(stat.isDirectory());
+    });
+  });
+
+  module('createReadStream', function() {
+    test('returns a readable stream that yields file contents', async function(assert) {
+      await createFile(TMP_FILE, 'stream-data');
+      const stream = createReadStream(TMP_FILE, { encoding: 'utf8' });
+      const chunks: string[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk as string);
+      }
+      assert.equal(chunks.join(''), 'stream-data');
+    });
+  });
+
+  module('createWriteStream', function() {
+    test('returns a writable stream that creates file with data', async function(assert) {
+      const done = assert.async();
+      const stream = createWriteStream(TMP_FILE);
+      stream.write('written-data');
+      stream.end(() => {
+        fsp.readFile(TMP_FILE, 'utf8').then((data) => {
+          assert.equal(data, 'written-data');
+          done();
+        });
+      });
     });
   });
 

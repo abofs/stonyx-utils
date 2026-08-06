@@ -30,6 +30,15 @@ export function confirm(question: string, { input, output }: PromptOptions = {})
 }
 
 export function prompt(question: string, { input, output }: PromptOptions = {}): Promise<string> {
+  if (!input && !process.stdin.isTTY) {
+    return Promise.reject(
+      new Error(
+        'Interactive prompt() requires a TTY on stdin. ' +
+        'For headless/container deployments, configure non-interactive alternatives instead.'
+      )
+    );
+  }
+
   const rl = createInterface({
     input: input ?? process.stdin,
     output: output ?? process.stdout,

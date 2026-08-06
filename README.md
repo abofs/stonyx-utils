@@ -245,12 +245,16 @@ Prompts the user with `(y/N)` and resolves to `true` only if the answer is `"y"`
 * `options.input` — Readable stream (default: `process.stdin`).
 * `options.output` — Writable stream (default: `process.stdout`).
 
+**TTY required:** Rejects with an error if `process.stdin` is not a TTY and no custom `input` stream is provided. For headless/container deployments, use `autoMigrate` config or provide a custom input stream.
+
 #### `prompt(question, options={})`
 
 Prompts the user with a question and resolves to the trimmed input string.
 
 * `options.input` — Readable stream (default: `process.stdin`).
 * `options.output` — Writable stream (default: `process.stdout`).
+
+**TTY required:** Rejects with an error if `process.stdin` is not a TTY and no custom `input` stream is provided.
 
 ```js
 import { confirm, prompt } from '@stonyx/utils/prompt';

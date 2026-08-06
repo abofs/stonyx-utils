@@ -7,6 +7,15 @@ interface PromptOptions {
 }
 
 export function confirm(question: string, { input, output }: PromptOptions = {}): Promise<boolean> {
+  if (!input && !process.stdin.isTTY) {
+    return Promise.reject(
+      new Error(
+        'Interactive confirm() requires a TTY on stdin. ' +
+        'For headless/container deployments, use the autoMigrate config option instead.'
+      )
+    );
+  }
+
   const rl = createInterface({
     input: input ?? process.stdin,
     output: output ?? process.stdout,

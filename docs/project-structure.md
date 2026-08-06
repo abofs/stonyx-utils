@@ -146,8 +146,8 @@ Imports: `@stonyx/utils/date`, `@stonyx/utils/string`, `@stonyx/utils/object`, `
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
-| `confirm` | `confirm(question, options?): Promise<boolean>` | Prompts user with `(y/N)` and returns `true` only if input is `"y"` (case-insensitive). Options: `{ input, output }` for custom streams. |
-| `prompt` | `prompt(question, options?): Promise<string>` | Prompts user with a question and returns trimmed input. Options: `{ input, output }` for custom streams. |
+| `confirm` | `confirm(question, options?): Promise<boolean>` | Prompts user with `(y/N)` and returns `true` only if input is `"y"` (case-insensitive). Options: `{ input, output }` for custom streams. Rejects if no TTY and no custom `input`. |
+| `prompt` | `prompt(question, options?): Promise<string>` | Prompts user with a question and returns trimmed input. Options: `{ input, output }` for custom streams. Rejects if no TTY and no custom `input`. |
 
 ### `src/string.js`
 

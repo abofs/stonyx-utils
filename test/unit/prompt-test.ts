@@ -66,6 +66,32 @@ module('[Unit] Prompt', function() {
       const result: boolean = await confirm('Apply?', { input, output });
       assert.true(result);
     });
+
+    test('throws on non-TTY when no custom input is provided', async function(assert) {
+      const originalIsTTY = process.stdin.isTTY;
+      try {
+        Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+        await assert.rejects(
+          confirm('test?'),
+          (err: Error) => /TTY|interactive/i.test(err.message),
+          'should reject with TTY-related error'
+        );
+      } finally {
+        Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true });
+      }
+    });
+
+    test('works with custom input stream regardless of TTY', async function(assert) {
+      const originalIsTTY = process.stdin.isTTY;
+      try {
+        Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+        const { input, output } = createMockStreams('y');
+        const result: boolean = await confirm('test?', { input, output });
+        assert.true(result);
+      } finally {
+        Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true });
+      }
+    });
   });
 
   module('prompt', function() {
@@ -79,6 +105,32 @@ module('[Unit] Prompt', function() {
       const { input, output } = createMockStreams('');
       const result: string = await prompt('Name?', { input, output });
       assert.equal(result, '');
+    });
+
+    test('throws on non-TTY when no custom input is provided', async function(assert) {
+      const originalIsTTY = process.stdin.isTTY;
+      try {
+        Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+        await assert.rejects(
+          prompt('test?'),
+          (err: Error) => /TTY|interactive/i.test(err.message),
+          'should reject with TTY-related error'
+        );
+      } finally {
+        Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true });
+      }
+    });
+
+    test('works with custom input stream regardless of TTY', async function(assert) {
+      const originalIsTTY = process.stdin.isTTY;
+      try {
+        Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+        const { input, output } = createMockStreams('hello');
+        const result: string = await prompt('test?', { input, output });
+        assert.equal(result, 'hello');
+      } finally {
+        Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true });
+      }
     });
   });
 });

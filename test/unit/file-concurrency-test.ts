@@ -272,16 +272,13 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
 
       const [childA, childB] = await Promise.all([runChild('AAAA'), runChild('BBBB')]);
 
-      assert.strictEqual(
-        childA.code,
-        0,
-        `child A exited 0 — stderr: ${childA.stderr.split('\n').slice(0, 4).join(' | ')}`
-      );
-      assert.strictEqual(
-        childB.code,
-        0,
-        `child B exited 0 — stderr: ${childB.stderr.split('\n').slice(0, 4).join(' | ')}`
-      );
+      // Report the error line, not node's stack banner — the banner says nothing
+      // about *why* the child died.
+      const reason = (stderr: string) =>
+        stderr.split('\n').filter(line => /Error|code:|errno:/.test(line)).slice(0, 2).join(' | ') || '(no error line)';
+
+      assert.strictEqual(childA.code, 0, `child A exited 0 — stderr: ${reason(childA.stderr)}`);
+      assert.strictEqual(childB.code, 0, `child B exited 0 — stderr: ${reason(childB.stderr)}`);
 
       const final = await fsp.readFile(TMP_FILE, 'utf8');
       assert.ok(final === 'AAAA' || final === 'BBBB', `final file is exactly one child's payload — got ${JSON.stringify(final)}`);

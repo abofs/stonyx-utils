@@ -27,7 +27,7 @@
 
 - Category-based module design: each source file (`file.ts`, `object.ts`, `string.ts`, `date.ts`, `promise.ts`, `prompt.ts`, `fuzzy-match.ts`) is a separate subpath export (e.g., `@stonyx/utils/file`, `@stonyx/utils/object`)
 - No barrel/index file -- consumers import from specific subpaths, enabling tree-shaking
-- File utils wrap `fs.promises` with atomic writes (temp file + rename in `updateFile`), recursive directory operations, and dynamic ESM imports via `forEachFileImport`
+- File utils wrap `fs.promises` with atomic writes (unique-named sibling swap file + rename in `updateFile`), recursive directory operations, and dynamic ESM imports via `forEachFileImport`
 - Object utils provide deep clone (JSON round-trip), deep merge with `ignoreNewKeys` option, safe dot-path access via `get()`, and Map helper `getOrSet()`
 - String utils include case converters (kebab/camel/pascal), random string generation, and English pluralization with irregular/uncountable noun handling
 - `FuzzyMatch` class provides Unicode-normalized, stop-word-filtered, word-set similarity scoring for cross-source name reconciliation
@@ -38,7 +38,7 @@
 - Tests live in `test/unit/` with subdirectories mirroring the source structure (e.g., `test/unit/object/get-test.ts`, `test/unit/string/plurarize-test.ts`)
 - The `pnpm test` script chains `build`, `build:test`, then runs QUnit on `dist-test/test/**/*.js`
 - `forEachFileImport()` is heavily used across the Stonyx ecosystem for plugin/module loading; test both the `recursive` and `recursiveNaming` options
-- `updateFile()` uses a timestamp-based temp file (`{path}.temp-{unix_ts}`) for atomic writes -- test concurrent write scenarios
+- `updateFile()` writes to a sibling swap file named `{path}.temp-{pid}-{uuid}` (opened `wx`), then renames it over the target. The name was a whole-second timestamp until #44, which made concurrent saves on one path collide. Concurrent write scenarios are covered in `test/unit/file-concurrency-test.ts` -- that suite forces the interleaving with `sinon.useFakeTimers({ toFake: ['Date'] })` plus a barrier assigned onto `fs.promises.writeFile`; a bare `Promise.all` is a sample, not a test
 - `mergeObject()` performs recursive deep merge but explicitly rejects arrays as top-level inputs
 - `get()` uses `console.error` for argument validation failures rather than throwing, returning `undefined` -- tests must account for this behavior
 - The `pluralize` function lives in `src/plurarize.ts` (note the typo in the filename) and is re-exported from `string.ts`

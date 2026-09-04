@@ -28,7 +28,7 @@
 - Flat module architecture with 7 subpath exports: `file`, `object`, `string`, `date`, `promise`, `prompt`, `fuzzy-match`
 - Each module exports named functions (no default exports) except `fuzzy-match` which exports a class as default
 - File utils: async-first design wrapping `fs.promises` with error type narrowing via `isNodeError()` helper
-- Atomic file updates: `updateFile()` writes to a temp file with timestamp suffix, then renames
+- Atomic file updates: `updateFile()` writes to a sibling swap file suffixed `{pid}-{uuid}` (opened `wx`), then renames. The swap file must stay a sibling of the target so `rename` remains same-filesystem and therefore atomic. Contract is last-writer-wins: concurrent callers never corrupt each other, but they are not serialized
 - `forEachFileImport()` dynamically imports `.js` files from a directory with support for recursive traversal, name prefixing, and kebab-to-camelCase conversion
 - Deep merge in `mergeObject()` uses shallow cloning for leaf values and recursive descent for nested objects, with an `ignoreNewKeys` guard
 - `FuzzyMatch` class uses Unicode NFD normalization, configurable stop words, and Jaccard-style word-set overlap scoring with partial prefix matching (0.7 weight)

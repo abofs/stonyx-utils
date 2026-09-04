@@ -53,35 +53,71 @@ export async function createFile(filePath: string, data: string | Record<string,
  *
  * Writes to a swap file that is a **sibling** of the target — so `rename` stays
  * on one filesystem and therefore stays atomic — then renames it over the
- * target. The swap name carries `process.pid` and a UUID rather than a
- * timestamp: a whole-second token collided between concurrent callers, which
- * made one caller throw `ENOENT` and the other silently persist bytes it had
- * not written (abofs/stonyx-utils#44).
+ * target. The swap name carries `process.pid` and a short random token rather
+ * than a timestamp: a whole-second token collided between concurrent callers,
+ * which made one caller throw `ENOENT` and the other silently persist bytes it
+ * had not written (abofs/stonyx-utils#44).
  *
  * Concurrency contract: **last writer wins**. Unique swap names remove the
  * `ENOENT` and the byte-level clobber, but overlapping calls on one path still
- * race on which value lands last. `updateFile` does not serialise, and callers
- * needing a serialisation guarantee must supply their own — an in-process queue
+ * race on which value lands last. `updateFile` does not serialize, and callers
+ * needing a serialization guarantee must supply their own — an in-process queue
  * would not provide one across processes anyway.
+ *
+ * The target's mode is read before the write and reapplied to the swap file, so
+ * the rename does not widen a deliberately restrictive file (a `0600` database
+ * would otherwise become `0666 & ~umask`). Other inode-bound metadata — ACLs,
+ * extended attributes, hard links, ownership — is *not* carried across; the
+ * target gets a new inode by construction.
+ *
+ * `rename` is atomic against concurrent *readers*, not against power loss:
+ * there is no `fsync`, so this is namespace atomicity, not crash durability.
+ * If the target is a symlink it is replaced by a regular file — the link's
+ * destination is never written through.
+ *
+ * Swap files are cleaned up on every failure path this function controls, but
+ * a process killed between the write and the rename leaves a permanently
+ * distinct `<path>.temp-<pid>-<token>` sibling that nothing reclaims. No
+ * sweeper ships with this module; `*.temp-*` siblings of a target are safe for
+ * a consumer to delete.
  */
 export async function updateFile(filePath: string, data: string | Record<string, unknown>, options: FileOptions = {}): Promise<void> {
   try {
+    filePath = path.resolve(filePath);
+
     await fsp.access(filePath);
 
-    // pid + UUID, never a timestamp: the swap name is a uniqueness token, and
-    // whole seconds cannot discriminate between concurrent callers.
-    const swapFile = `${filePath}.temp-${process.pid}-${randomUUID()}`;
+    // The swap file becomes the target's inode, so it has to carry the target's
+    // permission bits or a routine save silently widens them.
+    const { mode } = await fsp.stat(filePath);
+    const targetMode = mode & 0o7777;
 
-    // `wx` turns any residual name collision into a loud EEXIST rather than a
-    // silent overwrite of another caller's swap bytes.
-    await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), { encoding: 'utf8', flag: 'wx' });
+    // pid + random token, never a timestamp: the swap name is a uniqueness
+    // token, and whole seconds cannot discriminate between concurrent callers.
+    // Truncated to 8 hex chars deliberately — a full 36-char UUID pushed the
+    // name overhead to 48 characters and made ~210-character basenames fail
+    // ENAMETOOLONG on a 255-byte NAME_MAX. `wx` below makes any residual
+    // collision loud, so the shortened token costs no safety.
+    const swapFile = `${filePath}.temp-${process.pid}-${randomUUID().slice(0, 8)}`;
 
     try {
+      // `wx` turns any residual name collision into a loud EEXIST rather than a
+      // silent overwrite of another caller's swap bytes. `mode` here is masked
+      // by the umask, so it only narrows — the chmod below sets the exact bits.
+      await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), { encoding: 'utf8', flag: 'wx', mode: targetMode });
+      await fsp.chmod(swapFile, targetMode);
+
       await fsp.rename(swapFile, filePath);
-    } catch (renameError) {
+    } catch (swapError) {
       // Leave no orphan behind, and never let the cleanup mask the real error.
-      await fsp.unlink(swapFile).catch(() => { /* best effort — original error wins */ });
-      throw renameError;
+      // EEXIST is the one code that must NOT be cleaned up: it means this call
+      // did not create the path, so the file belongs to another writer and
+      // unlinking it would reintroduce #44.
+      if (!(isNodeError(swapError) && swapError.code === 'EEXIST')) {
+        await fsp.unlink(swapFile).catch(() => { /* best effort — original error wins */ });
+      }
+
+      throw swapError;
     }
   } catch (error) {
     throw error instanceof Error ? error : new Error(String(error));

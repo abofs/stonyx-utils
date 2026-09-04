@@ -1,9 +1,9 @@
-import { getTimestamp } from './date.js';
 import { kebabCaseToCamelCase } from './string.js';
 import { objToJson } from './object.js';
 import fs from 'fs';
 import { promises as fsp } from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error;
@@ -48,13 +48,41 @@ export async function createFile(filePath: string, data: string | Record<string,
   }
 }
 
+/**
+ * Atomically replace the contents of an existing file.
+ *
+ * Writes to a swap file that is a **sibling** of the target — so `rename` stays
+ * on one filesystem and therefore stays atomic — then renames it over the
+ * target. The swap name carries `process.pid` and a UUID rather than a
+ * timestamp: a whole-second token collided between concurrent callers, which
+ * made one caller throw `ENOENT` and the other silently persist bytes it had
+ * not written (abofs/stonyx-utils#44).
+ *
+ * Concurrency contract: **last writer wins**. Unique swap names remove the
+ * `ENOENT` and the byte-level clobber, but overlapping calls on one path still
+ * race on which value lands last. `updateFile` does not serialise, and callers
+ * needing a serialisation guarantee must supply their own — an in-process queue
+ * would not provide one across processes anyway.
+ */
 export async function updateFile(filePath: string, data: string | Record<string, unknown>, options: FileOptions = {}): Promise<void> {
   try {
     await fsp.access(filePath);
 
-    const swapFile = `${filePath}.temp-${getTimestamp()}`;
-    await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), 'utf8');
-    await fsp.rename(swapFile, filePath);
+    // pid + UUID, never a timestamp: the swap name is a uniqueness token, and
+    // whole seconds cannot discriminate between concurrent callers.
+    const swapFile = `${filePath}.temp-${process.pid}-${randomUUID()}`;
+
+    // `wx` turns any residual name collision into a loud EEXIST rather than a
+    // silent overwrite of another caller's swap bytes.
+    await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), { encoding: 'utf8', flag: 'wx' });
+
+    try {
+      await fsp.rename(swapFile, filePath);
+    } catch (renameError) {
+      // Leave no orphan behind, and never let the cleanup mask the real error.
+      await fsp.unlink(swapFile).catch(() => { /* best effort — original error wins */ });
+      throw renameError;
+    }
   } catch (error) {
     throw error instanceof Error ? error : new Error(String(error));
   }

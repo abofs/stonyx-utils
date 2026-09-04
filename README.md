@@ -79,7 +79,11 @@ Updates a file atomically by writing to a sibling swap file first, then renaming
 
 * `options.json` — boolean, serialize as JSON.
 
-**Concurrency: last writer wins.** Concurrent `updateFile` calls on the same path are safe — each uses a swap file unique to its process and call, so neither caller can throw `ENOENT` or persist the other's bytes — but they are not serialized. The surviving value is whichever caller renames last.
+**Concurrency: last writer wins.** Concurrent `updateFile` calls on the same path are safe — each uses a swap file unique to its process and call, so neither caller's swap file can collide with the other's. The rename-time `ENOENT` and the silent cross-caller byte clobber of [#44](https://github.com/abofs/stonyx-utils/issues/44) are both gone. (`updateFile` still throws `ENOENT` from its own precondition when the target does not exist — that is the documented contract above, and it is unrelated to concurrency.) Calls are not serialized: the surviving value is whichever caller renames last.
+
+**File mode is preserved; other inode metadata is not.** The swap file is created with the target's permission bits and `chmod`ed to them before the rename, so a `0600` file stays `0600`. ACLs, extended attributes, hard links and ownership are *not* carried across — the target necessarily gets a new inode.
+
+**Swap files after abnormal termination.** Cleanup runs on every failure path `updateFile` controls, but a process killed between the write and the rename leaves a `<path>.temp-<pid>-<token>` sibling behind, and no module ships a sweeper. This is a deliberate trade against the previous whole-second swap name, which self-reclaimed by being reused — reuse is exactly the collision that caused #44, so uniqueness has to win. The cost is that abandoned swap files now accumulate rather than overwriting one another. Consumers that persist into a directory they scan, sync or commit should sweep or ignore `*.temp-*` siblings of their targets; an app that runs `git add` over its data directory will otherwise commit one.
 
 #### `copyFile(sourcePath, targetPath, options={})`
 

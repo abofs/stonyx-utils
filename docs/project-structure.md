@@ -9,6 +9,7 @@
 - [Module Documentation](#module-documentation)
   - [date.js](#srcdate.js)
   - [file.js](#srcfile.js)
+    - [Swap file lifecycle](#swap-file-lifecycle)
   - [object.js](#srcobject.js)
   - [plurarize.js](#srcplurarize.js)
   - [promise.js](#srcpromise.js)
@@ -65,6 +66,7 @@ stonyx-utils/
   test/
     unit/
       file-test.js                # Tests for src/file.js
+      file-concurrency-test.js    # updateFile concurrency + failure-path tests (#44)
       prompt-test.js              # Tests for src/prompt.js
       object/
         get-test.js               # Tests for object get()
@@ -110,7 +112,7 @@ Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `createFile` | `createFile(filePath, data, options?): Promise<void>` | Creates a file. `options.json` serializes data as JSON. Auto-creates parent directories. |
-| `updateFile` | `updateFile(filePath, data, options?): Promise<void>` | Atomically updates an existing file via a sibling swap file named `{path}.temp-{pid}-{uuid}`, then `rename`. `options.json` for JSON serialization. Throws if file does not exist. **Concurrency: last writer wins.** Unique swap names make concurrent calls on one path safe — no `ENOENT`, no cross-caller byte clobber, no orphan swap file — but `updateFile` does not serialize, so the value that lands is whichever caller renames last. Callers needing a serialization guarantee must supply their own; an in-process queue would not provide one across processes. |
+| `updateFile` | `updateFile(filePath, data, options?): Promise<void>` | Atomically updates an existing file via a sibling swap file named `{path}.temp-{pid}-{token}` (`token` is 8 hex chars from `randomUUID()`; the full 36-char form pushed long basenames into `ENAMETOOLONG`), then `rename`. `options.json` for JSON serialization. Throws `ENOENT` if the file does not exist. Preserves the target's mode across the swap. **Concurrency: last writer wins.** Unique swap names make concurrent calls on one path safe — no rename-time `ENOENT`, no cross-caller byte clobber, and no orphan swap file left by any failure path `updateFile` controls (write failure, `chmod` failure, or rename failure) — but `updateFile` does not serialize, so the value that lands is whichever caller renames last. Callers needing a serialization guarantee must supply their own; an in-process queue would not provide one across processes. **Not covered:** cleanup after a failed `rename` is best effort, so a failing `unlink` leaves the swap file, and a process that dies between the write and the rename leaves a `{path}.temp-{pid}-{token}` sibling that nothing reclaims — see [Swap file lifecycle](#swap-file-lifecycle). |
 | `copyFile` | `copyFile(sourcePath, targetPath, options?): Promise<boolean>` | Copies a file. Returns `false` if target exists and `options.overwrite` is not `true`. |
 | `readFile` | `readFile(filePath, options?): Promise<string\|object>` | Reads a file. `options.json` parses as JSON. `options.missingFileCallback(filePath)` called on ENOENT. |
 | `deleteFile` | `deleteFile(filePath, options?): Promise<void>` | Deletes a file. `options.ignoreAccessFailure` silences missing-file errors. |
@@ -118,6 +120,23 @@ Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 | `createDirectory` | `createDirectory(dir): Promise<void>` | Recursively creates a directory (`mkdir -p`). |
 | `forEachFileImport` | `forEachFileImport(dir, callback, options?): Promise<void>` | Dynamically imports all `.js` files in a directory and invokes `callback(exports, { name, stats, path })`. Options: `fullExport`, `rawName`, `ignoreAccessFailure`, `recursive`, `recursiveNaming`, `namePrefix`. |
 | `fileExists` | `fileExists(filePath): Promise<boolean>` | Returns `true` if file exists, `false` otherwise. |
+
+#### Swap file lifecycle
+
+`updateFile` writes a sibling swap file and renames it over the target. Which swap files can survive, and what reclaims them, is the part a consumer has to plan for.
+
+| Situation | Swap file | Reclaimed by |
+| --------- | --------- | ------------ |
+| Success | Renamed onto the target | n/a |
+| `writeFile` fails (ENOSPC, EDQUOT, EIO) | Unlinked | `updateFile` |
+| `chmod` or `rename` fails | Unlinked | `updateFile` |
+| `unlink` itself fails during that cleanup | **Left on disk** | nothing |
+| `EEXIST` from the `wx` flag | **Left on disk — deliberately.** The path was not created by this call, so it belongs to another writer. Unlinking it would reintroduce [#44](https://github.com/abofs/stonyx-utils/issues/44). | its owner |
+| Process killed between write and rename | **Left on disk** | nothing |
+
+**The trade-off, stated plainly.** Before [#44](https://github.com/abofs/stonyx-utils/issues/44) the swap name was `{path}.temp-{unix_seconds}`, written with the default `w` flag. Abandoned swap files were therefore bounded at one per (path, second) and self-reclaiming: the next save landing in that same second reused the name, truncated it and renamed it away. Reuse is precisely the collision that corrupted concurrent saves, so it had to go — but removing it also removed the accidental reclamation that came with it. Every abandoned swap file is now a permanently distinct file, and **no sweeper ships with this module**.
+
+That is the right trade (correctness over tidiness) and the residual is disk growth, not breakage: nothing in the `@stonyx/*` ecosystem enumerates these files. `@stonyx/orm` opens collections by explicit `{key}.json` path rather than reading the directory, and `forEachFileImport` filters on `.js`/`.ts`. The cost lands on consumers whose data directory is scanned by something outside the framework — an app that runs `git add` over its database directory will commit an orphan, since no `.gitignore` in this ecosystem carries a `*.temp-*` pattern. Sweeping or ignoring `*.temp-*` siblings of a target is safe and is the consumer's call to make.
 
 ### `src/object.js`
 
@@ -179,6 +198,8 @@ None (`"dependencies": {}`).
 
 - **Framework:** QUnit with nested `module()` blocks
 - **Mocking:** Sinon spies/stubs (used for `console.error` spying in `get-test.js`, stub factories in `getOrSet-test.js`)
+- **Filesystem fault injection:** `sinon.stub(fsp, 'writeFile' | 'rename' | 'unlink')` in `file-concurrency-test.js`. `dist/file.js` resolves these off the shared `fs.promises` object at call time, so stubbing the property intercepts production without a production seam. Always stub via sinon rather than assigning — `fs.promises` is process-global, QUnit runs one process, and the `sinon.restore()` in `afterEach` is what keeps a leaked patch from surfacing in an unrelated suite.
+- **Clock pinning:** `sinon.useFakeTimers({ now, toFake: ['Date'] })` — `['Date']` only; faking timers as well deadlocks any test that awaits a barrier.
 - **Stream mocking:** Custom `Readable`/`Writable` streams in `prompt-test.js`
 - **File tests:** Create temp directory in `beforeEach`, clean up in `afterEach`
 - **Run command:** `pnpm test` (which runs `qunit`)

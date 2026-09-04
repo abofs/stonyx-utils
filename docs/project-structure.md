@@ -134,7 +134,17 @@ Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 | `EEXIST` from the `wx` flag | **Left on disk — deliberately.** The path was not created by this call, so it belongs to another writer. Unlinking it would reintroduce [#44](https://github.com/abofs/stonyx-utils/issues/44). | its owner |
 | Process killed between write and rename | **Left on disk** | nothing |
 
-**The trade-off, stated plainly.** Before [#44](https://github.com/abofs/stonyx-utils/issues/44) the swap name was `{path}.temp-{unix_seconds}`, written with the default `w` flag. Abandoned swap files were therefore bounded at one per (path, second) and self-reclaiming: the next save landing in that same second reused the name, truncated it and renamed it away. Reuse is precisely the collision that corrupted concurrent saves, so it had to go — but removing it also removed the accidental reclamation that came with it. Every abandoned swap file is now a permanently distinct file, and **no sweeper ships with this module**.
+**The trade-off, stated plainly — and measured, because the obvious framing overstates it.** Before [#44](https://github.com/abofs/stonyx-utils/issues/44) the swap name was `{path}.temp-{unix_seconds}`, written with the default `w` flag. Two abandoned swap files on one path could therefore collapse into one, but *only* if both were abandoned inside the same whole second. That is a **rate limit, not a bound**: the old name reclaimed nothing across a second boundary, so a long-lived process still accumulated one orphan per crashing second, without limit.
+
+Measured by killing a writer between the write and the rename, five crashes on one path:
+
+| Crash cadence | old `temp-{unix_seconds}` | new `temp-{pid}-{token}` |
+| ------------- | ------------------------- | ------------------------ |
+| 1 crash / 1200 ms (ordinary) | 5 orphans | 5 orphans |
+| 1 crash / 300 ms (restart storm) | 3 orphans | 5 orphans |
+| back-to-back (hard crash loop) | 1 orphan | 5 orphans |
+
+At any crash cadence slower than one per second — the ordinary case — the two names behave **identically**, and the old one reclaimed nothing the new one does not. The accumulation uniqueness genuinely adds is confined to a sub-second crash loop. Reuse is precisely the collision that corrupted concurrent saves, so it had to go, and the incidental same-second reclamation went with it. Every abandoned swap file is now a permanently distinct file, and **no sweeper ships with this module**; reclamation is tracked in [#47](https://github.com/abofs/stonyx-utils/issues/47).
 
 That is the right trade (correctness over tidiness) and the residual is disk growth, not breakage: nothing in the `@stonyx/*` ecosystem enumerates these files. `@stonyx/orm` opens collections by explicit `{key}.json` path rather than reading the directory, and `forEachFileImport` filters on `.js`/`.ts`. The cost lands on consumers whose data directory is scanned by something outside the framework — an app that runs `git add` over its database directory will commit an orphan, since no `.gitignore` in this ecosystem carries a `*.temp-*` pattern. Sweeping or ignoring `*.temp-*` siblings of a target is safe and is the consumer's call to make.
 

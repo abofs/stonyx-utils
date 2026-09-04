@@ -105,12 +105,12 @@ Defined in `package.json` under `"exports"`:
 
 ### `src/file.js`
 
-Imports: `@stonyx/utils/date`, `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`
+Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `createFile` | `createFile(filePath, data, options?): Promise<void>` | Creates a file. `options.json` serializes data as JSON. Auto-creates parent directories. |
-| `updateFile` | `updateFile(filePath, data, options?): Promise<void>` | Atomically updates an existing file via temp-file swap. `options.json` for JSON serialization. Throws if file does not exist. |
+| `updateFile` | `updateFile(filePath, data, options?): Promise<void>` | Atomically updates an existing file via a sibling swap file named `{path}.temp-{pid}-{uuid}`, then `rename`. `options.json` for JSON serialization. Throws if file does not exist. **Concurrency: last writer wins.** Unique swap names make concurrent calls on one path safe — no `ENOENT`, no cross-caller byte clobber, no orphan swap file — but `updateFile` does not serialize, so the value that lands is whichever caller renames last. Callers needing a serialization guarantee must supply their own; an in-process queue would not provide one across processes. |
 | `copyFile` | `copyFile(sourcePath, targetPath, options?): Promise<boolean>` | Copies a file. Returns `false` if target exists and `options.overwrite` is not `true`. |
 | `readFile` | `readFile(filePath, options?): Promise<string\|object>` | Reads a file. `options.json` parses as JSON. `options.missingFileCallback(filePath)` called on ENOENT. |
 | `deleteFile` | `deleteFile(filePath, options?): Promise<void>` | Deletes a file. `options.ignoreAccessFailure` silences missing-file errors. |

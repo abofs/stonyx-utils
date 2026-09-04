@@ -75,9 +75,11 @@ Creates a file at the given path.
 
 #### `updateFile(filePath, data, options={})`
 
-Updates a file atomically by writing to a temporary file first.
+Updates a file atomically by writing to a sibling swap file first, then renaming it over the target. Throws if the file does not exist.
 
 * `options.json` — boolean, serialize as JSON.
+
+**Concurrency: last writer wins.** Concurrent `updateFile` calls on the same path are safe — each uses a swap file unique to its process and call, so neither caller can throw `ENOENT` or persist the other's bytes — but they are not serialized. The surviving value is whichever caller renames last.
 
 #### `copyFile(sourcePath, targetPath, options={})`
 

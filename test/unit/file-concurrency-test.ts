@@ -566,4 +566,118 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
       assert.strictEqual(await fsp.readFile(TMP_FILE, 'utf8'), 'AAAA', 'the payload still landed');
     });
   });
+
+  module('swap-path hijack — the mode is applied to the descriptor, not the path', function() {
+    /**
+     * PR #45, Phase 3 HIGH-3. Preserving the target's mode (HIGH-1) needs an
+     * explicit `chmod`, because the `mode` given to the open is umask-masked
+     * and therefore only narrows. Done as `fsp.chmod(swapFile, ...)` that
+     * `chmod` addresses a *path* and follows symlinks: an attacker with write
+     * access to the directory unlinks the swap path while the write is in
+     * flight, drops a symlink to a victim file in its place, and the `chmod`
+     * lands on the victim with the writing process's privileges. CWE-59 /
+     * CWE-732, and the victim never had to be writable by the attacker.
+     *
+     * Deliberately built without a stub on the seam the fix is written
+     * against. The attacker here is an ordinary async loop doing real
+     * `readdir`/`unlink`/`symlink` syscalls against the real directory while a
+     * real `updateFile` runs, so what is measured is kernel symlink
+     * resolution, not a mock of it. The payload is large enough that the swap
+     * file exists for long enough to be hijacked without any timing trickery —
+     * the vulnerable window opens the moment the swap file is created, not
+     * when the write finishes, because an unlinked-but-open descriptor keeps
+     * taking bytes while the path it used to occupy is already a symlink.
+     *
+     * Measured at 17d20823 (path-based `chmod`): 5/5 attempts widened the
+     * victim 0600 -> 0666 with `updateFile` returning success. With the mode
+     * applied to the descriptor instead: 10/10 attempts hijacked, 0 widened.
+     */
+    test('a swap path hijacked to a symlink does not widen the victim file', async function(assert) {
+      const ATTEMPTS = 3;
+      const victim = path.join(TMP_DIR, 'victim.txt');
+
+      // 8 MiB: big enough that the swap file is open across many event-loop
+      // turns, so the attacker below lands its hijack without racing a
+      // sub-millisecond window.
+      const payload = 'x'.repeat(8 * 1024 * 1024);
+
+      const outcomes: { hijacked: number; victimMode: string; victimBody: string }[] = [];
+
+      for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
+        await createFile(victim, 'SECRET');
+        await fsp.chmod(victim, 0o600);
+
+        // 0666 is the load-bearing source mode: it is the case that forces the
+        // explicit chmod to exist at all, so it is the widest set of bits the
+        // primitive can hand an attacker.
+        await createFile(TMP_FILE, 'initial');
+        await fsp.chmod(TMP_FILE, 0o666);
+
+        let hijacked = 0;
+        let running = true;
+
+        const attacker = (async () => {
+          while (running && hijacked === 0) {
+            let names: string[] = [];
+            try { names = await fsp.readdir(TMP_DIR); } catch { /* directory torn down */ }
+
+            for (const name of names) {
+              if (!name.includes('.temp-')) continue;
+
+              try {
+                await fsp.unlink(path.join(TMP_DIR, name));
+                await fsp.symlink(victim, path.join(TMP_DIR, name));
+                hijacked += 1;
+                break;
+              } catch { /* lost this one — the writer got there first */ }
+            }
+
+            await new Promise(resolve => setImmediate(resolve));
+          }
+        })();
+
+        try {
+          // Whether the update itself survives the hijack is not the subject:
+          // an attacker who can unlink the swap path can always make the
+          // rename fail. What must hold is that it cannot touch the victim.
+          await updateFile(TMP_FILE, payload).catch(() => { /* denial of service is not this finding */ });
+        } finally {
+          running = false;
+          await attacker;
+        }
+
+        outcomes.push({
+          hijacked,
+          victimMode: ((await fsp.lstat(victim)).mode & 0o7777).toString(8),
+          victimBody: await fsp.readFile(victim, 'utf8'),
+        });
+
+        // The target is a symlink to the victim by now on some attempts; take
+        // the directory back to a clean slate for the next one.
+        await deleteDirectory(TMP_DIR).catch(() => {});
+        await createDirectory(TMP_DIR);
+      }
+
+      // Without this the assertions below pass on any implementation at all,
+      // including one that never creates a swap file — the attacker has to
+      // have actually taken the path over for the mode check to mean anything.
+      assert.strictEqual(
+        outcomes.filter(outcome => outcome.hijacked > 0).length,
+        ATTEMPTS,
+        `the attacker took over the swap path on all ${ATTEMPTS} attempts — otherwise the checks below are vacuous`
+      );
+
+      assert.deepEqual(
+        outcomes.map(outcome => outcome.victimMode),
+        Array(ATTEMPTS).fill('600'),
+        'the victim file was never widened through the hijacked swap path'
+      );
+
+      assert.deepEqual(
+        outcomes.map(outcome => outcome.victimBody),
+        Array(ATTEMPTS).fill('SECRET'),
+        'the victim file was never written through the hijacked swap path either'
+      );
+    });
+  });
 });

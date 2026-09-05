@@ -66,9 +66,12 @@ export async function createFile(filePath: string, data: string | Record<string,
  *
  * The target's mode is read before the write and reapplied to the swap file, so
  * the rename does not widen a deliberately restrictive file (a `0600` database
- * would otherwise become `0666 & ~umask`). Other inode-bound metadata — ACLs,
- * extended attributes, hard links, ownership — is *not* carried across; the
- * target gets a new inode by construction.
+ * would otherwise become `0666 & ~umask`). It is applied to the open file
+ * *descriptor*, never to the swap path: a path-based `chmod` follows symlinks,
+ * so an attacker holding write access to the directory could hijack the swap
+ * path mid-write and have the mode land on a file of their choosing. Other
+ * inode-bound metadata — ACLs, extended attributes, hard links, ownership — is
+ * *not* carried across; the target gets a new inode by construction.
  *
  * `rename` is atomic against concurrent *readers*, not against power loss:
  * there is no `fsync`, so this is namespace atomicity, not crash durability.
@@ -147,16 +150,25 @@ export async function updateFile(filePath: string, data: string | Record<string,
       //
       // Exactly one case is not ours to remove: the `wx` open lost a race, so
       // the swap file is another writer's and unlinking it would reintroduce
-      // #44. That is EEXIST *from the write stage* — both halves matter.
-      //   - Code alone is not enough: `rename` surfaces EEXIST on Windows and
-      //     some network filesystems, and that file is one we created.
-      //   - Stage alone is not enough: `rename` is the only stage after the
-      //     open that can raise EEXIST at all, and by then the file is ours —
-      //     so a stage flag that answered "did the write finish?" would send
-      //     an ENOSPC/EDQUOT/EIO mid-write down the skip path and reinstate
-      //     the orphaned partial payload this PR exists to close. `created` is
-      //     set the instant the `wx` open returns, which is the only reading
-      //     of the stage that means "this call owns the path".
+      // #44.
+      //
+      // The stage is the half that decides it, and only because `created` is
+      // set the instant the `wx` open returns. That is the sole reading of the
+      // stage that means "this call owns the path": a flag set after the write
+      // instead would answer "did the write finish?", and an ENOSPC mid-write
+      // would take the skip path and reinstate the orphaned partial payload
+      // this PR exists to close. Splitting `writeFile` into an `open` and a
+      // write is what makes the correct reading expressible at all.
+      //
+      // The code half is kept as a narrowing guard, not because the stage is
+      // insufficient. Measured: mutating this to `!created` alone survives the
+      // suite, because `O_EXCL` cannot create and then fail, so a false
+      // `created` means no file exists and the unlink would be a no-op anyway.
+      // It earns its place by refusing to widen if the open and the write are
+      // ever re-merged — and note that the code alone does *not* hold up:
+      // mutating to the code alone reds `an EEXIST raised after the swap file
+      // was created is still cleaned up`, because `rename` surfaces EEXIST on
+      // Windows and some network filesystems and that file is one we created.
       const lostTheOpenRace = !created && isNodeError(swapError) && swapError.code === 'EEXIST';
 
       if (!lostTheOpenRace) {

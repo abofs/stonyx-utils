@@ -3,7 +3,7 @@ import { objToJson } from './object.js';
 import fs from 'fs';
 import { promises as fsp } from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
+import { randomBytes } from 'crypto';
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error;
@@ -94,11 +94,14 @@ export async function updateFile(filePath: string, data: string | Record<string,
 
     // pid + random token, never a timestamp: the swap name is a uniqueness
     // token, and whole seconds cannot discriminate between concurrent callers.
-    // Truncated to 8 hex chars deliberately — a full 36-char UUID pushed the
-    // name overhead to 48 characters and made ~210-character basenames fail
-    // ENAMETOOLONG on a 255-byte NAME_MAX. `wx` below makes any residual
-    // collision loud, so the shortened token costs no safety.
-    const swapFile = `${filePath}.temp-${process.pid}-${randomUUID().slice(0, 8)}`;
+    // The token is deliberately short — a full 36-char UUID pushed the name
+    // overhead to 48 characters and made ~210-character basenames fail
+    // ENAMETOOLONG on a 255-byte NAME_MAX. 6 CSPRNG bytes as base64url is 8
+    // characters carrying 48 bits, where the first 8 hex characters of a UUID
+    // would be the same width but only 32 bits; at 32 bits a 1000-sample
+    // distinctness check collides about once in 8,600 runs. `wx` below makes
+    // any residual collision loud rather than corrupting.
+    const swapFile = `${filePath}.temp-${process.pid}-${randomBytes(6).toString('base64url')}`;
 
     try {
       // `wx` turns any residual name collision into a loud EEXIST rather than a

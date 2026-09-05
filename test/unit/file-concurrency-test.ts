@@ -245,6 +245,27 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
         `all ${SAMPLES} swap names are distinct under a pinned clock — distinct: ${new Set(swapNames).size}`
       );
       assert.deepEqual(await swapFilesIn(TMP_DIR), [], 'no orphan swap files remain after 1000 saves');
+
+      // The distinctness assertion above is only evidence if the token is wide
+      // enough that 1000 samples are not a coin flip. Measure the width from
+      // the samples themselves rather than trusting the implementation: bits =
+      // token length x log2(observed alphabet). An 8-character hex token —
+      // `randomUUID().slice(0, 8)`, the form Phase 3 HIGH-2 suggested — is 32
+      // bits, at which 1000 samples collide with probability n^2/2^33 = 1.2e-4
+      // and this very test fails about once in 8,600 CI runs. 40 bits puts that
+      // under 1e-6; the shipped 8-character base64url token measures 48.
+      const TOKEN_PREFIX = `.temp-${process.pid}-`;
+      const tokens = swapNames.map(name => name.slice(name.indexOf(TOKEN_PREFIX) + TOKEN_PREFIX.length));
+      const alphabet = new Set(tokens.join(''));
+      const shortestToken = Math.min(...tokens.map(token => token.length));
+      const bits = shortestToken * Math.log2(alphabet.size);
+
+      assert.ok(
+        bits >= 40,
+        `swap token carries at least 40 bits — measured ${bits.toFixed(0)} ` +
+        `(${shortestToken} chars over a ${alphabet.size}-symbol alphabet); ` +
+        'below 40 the distinctness assertion above becomes flaky rather than load-bearing'
+      );
     });
   });
 

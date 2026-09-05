@@ -12,3 +12,7 @@
 
 # npm auth (never commit tokens)
 .npmrc
+
+# test fixture directories (removed in afterEach; an interrupted run leaves them)
+/__tmp__/
+/__tmp_concurrency__/

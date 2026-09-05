@@ -75,9 +75,15 @@ Creates a file at the given path.
 
 #### `updateFile(filePath, data, options={})`
 
-Updates a file atomically by writing to a temporary file first.
+Updates a file atomically by writing to a sibling swap file first, then renaming it over the target. Throws if the file does not exist.
 
 * `options.json` — boolean, serialize as JSON.
+
+**Concurrency: last writer wins.** Concurrent `updateFile` calls on the same path are safe — each uses a swap file unique to its process and call, so neither caller's swap file can collide with the other's. The rename-time `ENOENT` and the silent cross-caller byte clobber of [#44](https://github.com/abofs/stonyx-utils/issues/44) are both gone. (`updateFile` still throws `ENOENT` from its own precondition when the target does not exist — that is the documented contract above, and it is unrelated to concurrency.) Calls are not serialized: the surviving value is whichever caller renames last.
+
+**File mode is preserved; other inode metadata is not.** The swap file is created with the target's permission bits and `chmod`ed to them before the rename, so a `0600` file stays `0600`. The `chmod` addresses the open file descriptor rather than the swap path, so it cannot be redirected onto another file by anyone who can write to the directory. ACLs, extended attributes, hard links and ownership are *not* carried across — the target necessarily gets a new inode.
+
+**Swap files after abnormal termination.** Cleanup runs on every failure path `updateFile` controls, but a process killed between the write and the rename leaves a `<path>.temp-<pid>-<token>` sibling behind, and no module ships a sweeper. This is a deliberate trade against the previous whole-second swap name, which was reused — and reuse is exactly the collision that caused #44, so uniqueness has to win. Be precise about what that costs: the old name only ever collapsed two orphans that were abandoned within the *same whole second*, so at any ordinary crash cadence it reclaimed nothing either (measured: five crashes 1200 ms apart leave five orphans under both names). The accumulation uniqueness genuinely adds is confined to a sub-second crash loop. Consumers that persist into a directory they scan, sync or commit should sweep or ignore `*.temp-*` siblings of their targets; an app that runs `git add` over its data directory will otherwise commit one.
 
 #### `copyFile(sourcePath, targetPath, options={})`
 

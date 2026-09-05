@@ -131,7 +131,8 @@ Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 | `writeFile` fails (ENOSPC, EDQUOT, EIO) | Unlinked | `updateFile` |
 | `chmod` or `rename` fails | Unlinked | `updateFile` |
 | `unlink` itself fails during that cleanup | **Left on disk** | nothing |
-| `EEXIST` from the `wx` flag | **Left on disk — deliberately.** The path was not created by this call, so it belongs to another writer. Unlinking it would reintroduce [#44](https://github.com/abofs/stonyx-utils/issues/44). | its owner |
+| `EEXIST` from the `wx` **open** | **Left on disk — deliberately.** The open lost a race, so the path was not created by this call and belongs to another writer. Unlinking it would reintroduce [#44](https://github.com/abofs/stonyx-utils/issues/44). | its owner |
+| `EEXIST` from `rename` (Windows, some network filesystems) | Unlinked. The write stage already succeeded, so this swap file *is* ours — ownership is decided by which stage failed, not by the error code alone. | `updateFile` |
 | Process killed between write and rename | **Left on disk** | nothing |
 
 **The trade-off, stated plainly — and measured, because the obvious framing overstates it.** Before [#44](https://github.com/abofs/stonyx-utils/issues/44) the swap name was `{path}.temp-{unix_seconds}`, written with the default `w` flag. Two abandoned swap files on one path could therefore collapse into one, but *only* if both were abandoned inside the same whole second. That is a **rate limit, not a bound**: the old name reclaimed nothing across a second boundary, so a long-lived process still accumulated one orphan per crashing second, without limit.

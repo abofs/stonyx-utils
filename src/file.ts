@@ -103,20 +103,35 @@ export async function updateFile(filePath: string, data: string | Record<string,
     // any residual collision loud rather than corrupting.
     const swapFile = `${filePath}.temp-${process.pid}-${randomBytes(6).toString('base64url')}`;
 
+    // Which stage failed, so the catch can tell "the open collided" from "the
+    // open succeeded and something later failed" — see the catch.
+    let wrote = false;
+
     try {
       // `wx` turns any residual name collision into a loud EEXIST rather than a
       // silent overwrite of another caller's swap bytes. `mode` here is masked
       // by the umask, so it only narrows — the chmod below sets the exact bits.
       await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), { encoding: 'utf8', flag: 'wx', mode: targetMode });
+      wrote = true;
+
       await fsp.chmod(swapFile, targetMode);
 
       await fsp.rename(swapFile, filePath);
     } catch (swapError) {
       // Leave no orphan behind, and never let the cleanup mask the real error.
-      // EEXIST is the one code that must NOT be cleaned up: it means this call
-      // did not create the path, so the file belongs to another writer and
-      // unlinking it would reintroduce #44.
-      if (!(isNodeError(swapError) && swapError.code === 'EEXIST')) {
+      //
+      // Exactly one case is not ours to remove: the `wx` open lost a race, so
+      // the swap file is another writer's and unlinking it would reintroduce
+      // #44. That is EEXIST *from the write stage* — both halves matter.
+      //   - Code alone is not enough: `rename` surfaces EEXIST on Windows and
+      //     some network filesystems, and that file is one we created.
+      //   - Stage alone is not enough: a write that fails after the open
+      //     succeeded (ENOSPC, EDQUOT, EIO) also lands here with `wrote` false,
+      //     and skipping it is the orphaned partial payload this PR exists to
+      //     close.
+      const lostTheOpenRace = !wrote && isNodeError(swapError) && swapError.code === 'EEXIST';
+
+      if (!lostTheOpenRace) {
         await fsp.unlink(swapFile).catch(() => { /* best effort — original error wins */ });
       }
 

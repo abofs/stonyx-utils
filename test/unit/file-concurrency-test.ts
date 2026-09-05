@@ -394,6 +394,45 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
       assert.deepEqual(await swapFilesIn(TMP_DIR), [], 'the partially written swap file was cleaned up on the write-failure path');
       assert.strictEqual(await fsp.readFile(TMP_FILE, 'utf8'), 'initial', 'the target is untouched when the write fails');
     });
+
+    /**
+     * PR #45, Phase 3 blocker caveat — the second half of it.
+     *
+     * The caveat offered two shapes: exclude `EEXIST` from the cleanup, or set a
+     * `created` flag once `writeFile` resolves and gate the unlink on that. They
+     * are not equivalent. Keying on the code answers "is this error EEXIST?"
+     * when the question that decides ownership is "did *this* call create the
+     * path?" — so any EEXIST raised *after* a successful create is misread as
+     * another writer's file and the swap is orphaned.
+     *
+     * That is reachable: `rename(2)` is POSIX-atomic over an existing target,
+     * but Windows and some network filesystems surface `EEXIST`/`EPERM` for the
+     * same call, and `@stonyx/utils` is a leaf dependency of apps this repo's
+     * ubuntu-only CI never runs on.
+     */
+    test('an EEXIST raised after the swap file was created is still cleaned up', async function(assert) {
+      await createFile(TMP_FILE, 'initial');
+
+      // The write succeeds and creates the swap file — this call owns it — and
+      // the rename then fails with the one code the cleanup special-cases.
+      const injected = Object.assign(new Error('EEXIST: file already exists, rename'), { code: 'EEXIST' });
+      sinon.stub(fsp, 'rename').rejects(injected);
+
+      let caught: unknown;
+      try {
+        await updateFile(TMP_FILE, 'AAAA');
+      } catch (error) {
+        caught = error;
+      }
+
+      assert.strictEqual((caught as Error | undefined)?.message, injected.message, 'the rename failure propagated to the caller');
+      assert.deepEqual(
+        await swapFilesIn(TMP_DIR),
+        [],
+        'a swap file this call created is cleaned up even when the failure code is EEXIST'
+      );
+      assert.strictEqual(await fsp.readFile(TMP_FILE, 'utf8'), 'initial', 'the target is untouched');
+    });
   });
 
   module("flag 'wx' — a residual name collision is loud, and is not ours to clean up", function() {

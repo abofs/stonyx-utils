@@ -105,16 +105,41 @@ export async function updateFile(filePath: string, data: string | Record<string,
 
     // Which stage failed, so the catch can tell "the open collided" from "the
     // open succeeded and something later failed" — see the catch.
-    let wrote = false;
+    let created = false;
 
     try {
       // `wx` turns any residual name collision into a loud EEXIST rather than a
       // silent overwrite of another caller's swap bytes. `mode` here is masked
-      // by the umask, so it only narrows — the chmod below sets the exact bits.
-      await fsp.writeFile(swapFile, options.json ? objToJson(data) : String(data), { encoding: 'utf8', flag: 'wx', mode: targetMode });
-      wrote = true;
+      // by the umask, so it only narrows — the fchmod below sets the exact bits.
+      //
+      // The open is deliberately separate from the write. Everything after this
+      // line addresses the *descriptor*, never the path again, so an attacker
+      // with write access to the directory cannot redirect it: unlinking the
+      // swap path and replacing it with a symlink after this point leaves the
+      // handle bound to the original inode. `fsp.chmod(swapFile, ...)` on the
+      // path did not have that property — it followed such a symlink and
+      // widened an arbitrary victim file with this process's privileges
+      // (abofs/stonyx-utils#45, Phase 3 HIGH-3).
+      const handle = await fsp.open(swapFile, 'wx', targetMode);
+      created = true;
 
-      await fsp.chmod(swapFile, targetMode);
+      try {
+        await handle.writeFile(options.json ? objToJson(data) : String(data), 'utf8');
+
+        // fchmod(2) on the descriptor, not chmod(2) on the path. Needed at all
+        // because the `mode` above is umask-masked and therefore only narrows:
+        // a 0666 target would come back 0644 under the usual 022.
+        await handle.chmod(targetMode);
+      } catch (writeError) {
+        await handle.close().catch(() => { /* best effort — the write error wins */ });
+
+        throw writeError;
+      }
+
+      // Not in a `finally`: a close failure is a write failure (the flush can
+      // land here), so it has to surface rather than be swallowed — which is
+      // what `fsp.writeFile` did when it owned this close.
+      await handle.close();
 
       await fsp.rename(swapFile, filePath);
     } catch (swapError) {
@@ -125,11 +150,14 @@ export async function updateFile(filePath: string, data: string | Record<string,
       // #44. That is EEXIST *from the write stage* — both halves matter.
       //   - Code alone is not enough: `rename` surfaces EEXIST on Windows and
       //     some network filesystems, and that file is one we created.
-      //   - Stage alone is not enough: a write that fails after the open
-      //     succeeded (ENOSPC, EDQUOT, EIO) also lands here with `wrote` false,
-      //     and skipping it is the orphaned partial payload this PR exists to
-      //     close.
-      const lostTheOpenRace = !wrote && isNodeError(swapError) && swapError.code === 'EEXIST';
+      //   - Stage alone is not enough: `rename` is the only stage after the
+      //     open that can raise EEXIST at all, and by then the file is ours —
+      //     so a stage flag that answered "did the write finish?" would send
+      //     an ENOSPC/EDQUOT/EIO mid-write down the skip path and reinstate
+      //     the orphaned partial payload this PR exists to close. `created` is
+      //     set the instant the `wx` open returns, which is the only reading
+      //     of the stage that means "this call owns the path".
+      const lostTheOpenRace = !created && isNodeError(swapError) && swapError.code === 'EEXIST';
 
       if (!lostTheOpenRace) {
         await fsp.unlink(swapFile).catch(() => { /* best effort — original error wins */ });

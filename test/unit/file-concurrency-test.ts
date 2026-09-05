@@ -16,13 +16,18 @@
  *   1. `sinon.useFakeTimers({ toFake: ['Date'] })` — pins `Date.now()`, so
  *      `getTimestamp()` cannot straddle a second boundary and accidentally
  *      hand the two writers distinct names.
- *   2. `sinon.stub(fsp, 'writeFile')` etc. `dist/file.js` resolves `fsp.writeFile`
- *      at call time, so stubbing that property holds every writer at the point
- *      where its swap name is already computed but no bytes have been written.
- *      Stubs go through sinon rather than hand-assignment so the `sinon.restore()`
- *      in `afterEach` actually owns them — `fs.promises` is a process-global
- *      object and QUnit runs every test file in one process, so a leaked patch
- *      would surface in an unrelated suite.
+ *   2. `sinon.stub(fsp, 'open')` etc. `dist/file.js` resolves `fsp.open` at call
+ *      time, so stubbing that property holds every writer at the point where
+ *      its swap name is already computed but the swap file does not yet exist.
+ *      The seam is `open` and not `writeFile` because the swap file is now
+ *      created by `fsp.open(swapFile, 'wx', mode)` and everything after that
+ *      addresses the descriptor — see the fchmod note in `src/file.ts`. Node's
+ *      `fsp.writeFile` opens through an internal binding rather than through
+ *      this property, so this stub intercepts `updateFile`'s swap open and
+ *      nothing else. Stubs go through sinon rather than hand-assignment so the
+ *      `sinon.restore()` in `afterEach` actually owns them — `fs.promises` is a
+ *      process-global object and QUnit runs every test file in one process, so
+ *      a leaked patch would surface in an unrelated suite.
  */
 import QUnit from 'qunit';
 import sinon from 'sinon';
@@ -46,23 +51,25 @@ const PINNED_NOW = 1756800000000;
  * ------------------------------------------------------------------ */
 
 interface Barrier {
-  /** How many writers have reached `fsp.writeFile` and been held. */
+  /** How many writers have reached the swap-file `open` and been held. */
   entered: number;
-  /** Every path passed to `fsp.writeFile` while the barrier was installed. */
+  /** Every path passed to `fsp.open` while the barrier was installed. */
   paths: string[];
   restore: () => void;
 }
 
 /**
- * Hold every `fsp.writeFile` caller until `expected` of them have entered.
+ * Hold every swap-file `open` caller until `expected` of them have entered.
  *
- * Each writer's swap name is computed *before* its `writeFile` call, so by the
- * time the barrier releases both names are already fixed. Pre-fix they are the
- * same string; the barrier makes the resulting clobber deterministic instead of
- * dependent on scheduler luck.
+ * Each writer's swap name is computed *before* its `open` call, so by the time
+ * the barrier releases both names are already fixed. Pre-fix they are the same
+ * string; the barrier makes the resulting clobber deterministic instead of
+ * dependent on scheduler luck. Holding at `open` rather than at `writeFile`
+ * holds them one step earlier — before either has created its swap file — which
+ * is a strictly tighter interleaving for the same assertions.
  */
-function installWriteBarrier(expected: number): Barrier {
-  const realWriteFile = fsp.writeFile;
+function installOpenBarrier(expected: number): Barrier {
+  const realOpen = fsp.open;
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
 
@@ -72,7 +79,7 @@ function installWriteBarrier(expected: number): Barrier {
     restore: () => { stub.restore(); release(); },
   };
 
-  const stub = sinon.stub(fsp, 'writeFile').callsFake(async (file, data, options) => {
+  const stub = sinon.stub(fsp, 'open').callsFake(async (file, flags, mode) => {
     barrier.entered += 1;
     barrier.paths.push(String(file));
 
@@ -81,21 +88,21 @@ function installWriteBarrier(expected: number): Barrier {
     // Fail-safe: never hang the suite if a writer dies before reaching the gate.
     await Promise.race([gate, new Promise<void>(r => setTimeout(r, 5000))]);
 
-    return realWriteFile(file, data, options);
+    return realOpen(file, flags, mode);
   });
 
   return barrier;
 }
 
-/** Record every path handed to `fsp.writeFile` without altering its behaviour. */
-function recordWritePaths(): { paths: string[]; restore: () => void } {
-  const realWriteFile = fsp.writeFile;
+/** Record every path handed to `fsp.open` without altering its behaviour. */
+function recordSwapPaths(): { paths: string[]; restore: () => void } {
+  const realOpen = fsp.open;
   const paths: string[] = [];
 
-  const stub = sinon.stub(fsp, 'writeFile').callsFake(async (file, data, options) => {
+  const stub = sinon.stub(fsp, 'open').callsFake(async (file, flags, mode) => {
     paths.push(String(file));
 
-    return realWriteFile(file, data, options);
+    return realOpen(file, flags, mode);
   });
 
   return { paths, restore: () => stub.restore() };
@@ -156,7 +163,7 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
           await createFile(TMP_FILE, 'initial');
 
           const poller = startPoller(TMP_FILE);
-          const barrier = installWriteBarrier(2);
+          const barrier = installOpenBarrier(2);
 
           let results: PromiseSettledResult<void>[];
           try {
@@ -187,7 +194,7 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
       }
 
       // AC3 — the interleaving was forced, not sampled: both writers were held
-      // at `writeFile` on every single run.
+      // at the swap-file `open` on every single run.
       assert.strictEqual(
         barrierEntriesTotal,
         ITERATIONS * 2,
@@ -222,7 +229,7 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
     test('1000 sequential saves under a pinned clock produce 1000 distinct swap names', async function(assert) {
       const SAMPLES = 1000;
       const clock = sinon.useFakeTimers({ now: PINNED_NOW, toFake: ['Date'] });
-      const recorder = recordWritePaths();
+      const recorder = recordSwapPaths();
 
       try {
         await createFile(TMP_FILE, 'initial');
@@ -372,15 +379,24 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
     test('a writeFile that fails after creating the swap file leaves no orphan', async function(assert) {
       await createFile(TMP_FILE, 'initial');
 
-      const realWriteFile = fsp.writeFile;
+      const realOpen = fsp.open;
       const injected = Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' });
 
       // ENOSPC shape: the `wx` open succeeds and creates the file, the write of
-      // the payload then fails part-way through.
-      sinon.stub(fsp, 'writeFile').callsFake(async (file, _data, options) => {
-        await realWriteFile(file, 'PARTIAL', options);
+      // the payload then fails part-way through. The real open runs, so the
+      // swap file genuinely exists on disk with partial bytes in it — only the
+      // write through the returned descriptor is made to fail.
+      sinon.stub(fsp, 'open').callsFake(async (file, flags, mode) => {
+        const handle = await realOpen(file, flags, mode);
+        const realHandleWriteFile = handle.writeFile.bind(handle);
 
-        throw injected;
+        handle.writeFile = async (_data: unknown, writeOptions: unknown) => {
+          await realHandleWriteFile('PARTIAL', writeOptions as Parameters<typeof realHandleWriteFile>[1]);
+
+          throw injected;
+        };
+
+        return handle;
       });
 
       let caught: unknown;
@@ -445,15 +461,16 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
     test('an occupied swap path surfaces as EEXIST, leaves the other writer\'s bytes intact, and does not touch the target', async function(assert) {
       await createFile(TMP_FILE, 'initial');
 
-      const realWriteFile = fsp.writeFile;
+      const realOpen = fsp.open;
       let occupiedSwapPath = '';
 
-      // Stand in for another writer that reached this exact swap path first.
-      sinon.stub(fsp, 'writeFile').callsFake(async (file, data, options) => {
+      // Stand in for another writer that reached this exact swap path first:
+      // occupy the path, then let the real `wx` open run against it.
+      sinon.stub(fsp, 'open').callsFake(async (file, flags, mode) => {
         occupiedSwapPath = String(file);
-        await realWriteFile(occupiedSwapPath, 'OTHER-WRITER', 'utf8');
+        await fsp.writeFile(occupiedSwapPath, 'OTHER-WRITER', 'utf8');
 
-        return realWriteFile(file, data, options);
+        return realOpen(file, flags, mode);
       });
 
       let caught: NodeJS.ErrnoException | undefined;
@@ -487,7 +504,7 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
 
       await createFile(longTarget, 'initial');
 
-      const recorder = recordWritePaths();
+      const recorder = recordSwapPaths();
       try {
         await updateFile(longTarget, 'AAAA');
       } finally {
@@ -500,7 +517,17 @@ module('[Unit] File — updateFile concurrency (#44)', function(hooks) {
       // Budget, not format: NAME_MAX is 255 on APFS and ext4, so the overhead
       // the swap name adds to the basename has to stay small enough that an
       // ordinary long filename still fits.
-      const swapName = path.basename(recorder.paths.filter(p => p.includes('.temp-'))[0] ?? '');
+      const recordedSwapNames = recorder.paths.filter(p => p.includes('.temp-'));
+
+      // Without this the budget assertion below passes vacuously when the
+      // recorder is pointed at a call `updateFile` no longer makes: an empty
+      // capture yields a negative overhead, which is trivially within budget.
+      // Measured — with the recorder still on `fsp.writeFile` after the seam
+      // moved to `fsp.open`, this test was one of the survivors while four
+      // others reddened.
+      assert.strictEqual(recordedSwapNames.length, 1, 'exactly one swap path was captured — the budget below is measured, not vacuous');
+
+      const swapName = path.basename(recordedSwapNames[0] ?? '');
       assert.ok(
         swapName.length - path.basename(longTarget).length <= 24,
         `swap-name overhead stays within 24 characters — was ${swapName.length - path.basename(longTarget).length}`

@@ -15,6 +15,8 @@
   - [promise.js](#srcpromise.js)
   - [prompt.js](#srcprompt.js)
   - [string.js](#srcstring.js)
+  - [fuzzy-match.ts](#srcfuzzy-matchts)
+- [Downstream Consumers](#downstream-consumers)
 - [Dependencies](#dependencies)
 - [Test Patterns](#test-patterns)
 - [CI/CD](#cicd)
@@ -96,6 +98,9 @@ Defined in `package.json` under `"exports"`:
 | `@stonyx/utils/promise`| `src/promise.js` |
 | `@stonyx/utils/prompt` | `src/prompt.js`  |
 | `@stonyx/utils/string` | `src/string.js`  |
+| `@stonyx/utils/fuzzy-match` | `src/fuzzy-match.ts` |
+
+There is no root (`.`) export and no barrel file: consumers import each category from its subpath. Every subpath exports named functions except `fuzzy-match`, whose default export is the `FuzzyMatch` class.
 
 ## Module Documentation
 
@@ -119,11 +124,11 @@ Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 | `deleteDirectory` | `deleteDirectory(dir): Promise<void>` | Recursively deletes a directory (`rm -rf`). |
 | `createDirectory` | `createDirectory(dir): Promise<void>` | Recursively creates a directory (`mkdir -p`). |
 | `forEachFileImport` | `forEachFileImport(dir, callback, options?): Promise<void>` | Dynamically imports all `.js` files in a directory and invokes `callback(exports, { name, stats, path })`. Options: `fullExport`, `rawName`, `ignoreAccessFailure`, `recursive`, `recursiveNaming`, `namePrefix`. |
-| `fileExists` | `fileExists(filePath): Promise<boolean>` | Returns `true` if file exists, `false` otherwise. |
+| `fileExists` | `fileExists(filePath): Promise<boolean>` | Returns `true` if `fs.access` succeeds, `false` on **any** error, not only `ENOENT`. A permission error therefore reads as "does not exist". |
 
 #### Swap file lifecycle
 
-`updateFile` writes a sibling swap file and renames it over the target. Which swap files can survive, and what reclaims them, is the part a consumer has to plan for.
+`updateFile` writes a sibling swap file and renames it over the target. The swap file must stay a sibling of the target: that keeps the `rename` on one filesystem, which is what makes it atomic. Which swap files can survive, and what reclaims them, is the part a consumer has to plan for.
 
 | Situation | Swap file | Reclaimed by |
 | --------- | --------- | ------------ |
@@ -158,7 +163,7 @@ That is the right trade (correctness over tidiness) and the residual is disk gro
 | `objToJson` | `objToJson(obj, format?): string` | Stringifies object with formatting (default: tab). |
 | `makeArray` | `makeArray(obj): Array` | Wraps value in array if not already an array. |
 | `mergeObject` | `mergeObject(obj1, obj2, options?): object` | Deep merges two objects. `options.ignoreNewKeys` skips keys not in `obj1`. Throws on array input. |
-| `get` | `get(obj, path): any\|null` | Safely traverses dot-notation path. Returns `null` if any segment is `undefined`. Uses `console.error` for validation (does not throw). |
+| `get` | `get(obj, path): any\|undefined` | Safely traverses dot-notation path. Returns `undefined` if any segment is `undefined`. Invalid arguments (wrong arity, falsy `obj`, non-string `path`) log via `console.error` and return `undefined`; it never throws. |
 | `getOrSet` | `getOrSet(map, key, defaultValue): any` | Gets from a `Map`, or sets `defaultValue` (or calls it if function) when key is missing. Throws if not a `Map`. |
 
 ### `src/plurarize.js`
@@ -192,6 +197,21 @@ Re-exports `pluralize` from `./plurarize.js`.
 | `generateRandomString` | `generateRandomString(length?): string` | Generates random alphanumeric string (default length: 8). |
 | `pluralize` | (re-export) | Re-exported from `./plurarize.js`. |
 
+### `src/fuzzy-match.ts`
+
+Default export: `class FuzzyMatch`. Word-set similarity scoring for reconciling names that come from different sources.
+
+| Member | Signature | Description |
+| ------ | --------- | ----------- |
+| `constructor` | `new FuzzyMatch({ stopWords?, delimiter?, threshold? })` | Defaults: `stopWords` `[]`, `delimiter` `'\u00B7'` (middle dot), `threshold` `0.35`. |
+| `normalize` | `normalize(name): string` | NFD-normalizes and strips combining marks, lowercases, replaces non-alphanumerics with spaces, removes whole-word stop words, collapses whitespace. |
+| `similarity` | `similarity(a, b): number` | `1.0` if the normalized strings are equal, `0.9` if one contains the other, `0` if either is empty. Otherwise word-set overlap (words of length > 1): an exact word counts 1, a word that is a prefix of the other side's word (either direction) counts 0.7; the sum is divided by the larger set's size. |
+| `findBestMatch` | `findBestMatch(nameA, nameB, entries, threshold?): { entry, score } \| null` | Each `entry.name` is split on `delimiter` and must have exactly two parts (others are skipped). Scores the pair in both orders, keeps the best, and returns it only if `score >= threshold` (argument, else the instance default). |
+
+## Downstream Consumers
+
+Eight `@stonyx/*` packages depend on this one: `stonyx` and `stonyx-orm` at runtime; `stonyx-events`, `stonyx-cron`, `stonyx-rest-server`, `stonyx-oauth`, `stonyx-discord` and `stonyx-sockets` as dev dependencies. A publish of this package cascades a rebuild to them through the `stonyx-workflows` cascade job (`publish.yml` → `cascade.yml@main`), so a breaking change to any exported signature fails across the framework during the cascade. `forEachFileImport` is the directory loader in the `src/` of `stonyx-orm`, `stonyx-rest-server`, `stonyx-discord` and `stonyx-sockets`.
+
 ## Dependencies
 
 ### Runtime
@@ -214,7 +234,7 @@ None (`"dependencies": {}`).
 - **Clock pinning:** `sinon.useFakeTimers({ now, toFake: ['Date'] })` — `['Date']` only; faking timers as well deadlocks any test that awaits a barrier.
 - **Stream mocking:** Custom `Readable`/`Writable` streams in `prompt-test.js`
 - **File tests:** Create temp directory in `beforeEach`, clean up in `afterEach`
-- **Run command:** `pnpm test` (which runs `qunit`)
+- **Run command:** `pnpm test`, which runs `build` (`tsc`), then `build:test` (`tsc -p tsconfig.test.json`), then QUnit on `dist-test/test/**/*.js`. Tests run from compiled output, so a `src/` change is only exercised after the build step
 - **Import style:** Tests import from package exports (e.g., `@stonyx/utils/object`)
 
 ## CI/CD

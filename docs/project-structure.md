@@ -5,6 +5,7 @@
 - [Overview](#overview)
 - [Tech Stack](#tech-stack)
 - [File Structure](#file-structure)
+- [Canonical Usage Samples](#canonical-usage-samples)
 - [Package Exports](#package-exports)
 - [Module Documentation](#module-documentation)
   - [date.ts](#srcdatets)
@@ -67,11 +68,21 @@ stonyx-utils/
     string.ts                     # String transformation utilities
     fuzzy-match.ts                # FuzzyMatch word-set name similarity (default export)
   test/
+    sample/                       # Canonical usage samples (README link); run by unit/sample-test.ts, guarded by unit/sample-surface-test.ts
+      date.ts                     # getTimestamp
+      file.ts                     # every @stonyx/utils/file export, in a caller-supplied dir
+      fuzzy-match.ts              # FuzzyMatch normalize/similarity/findBestMatch
+      object.ts                   # deepCopy/objToJson/makeArray/mergeObject/get/getOrSet
+      promise.ts                  # sleep
+      prompt.ts                   # confirm/prompt with caller-supplied streams
+      string.ts                   # case conversions, generateRandomString, pluralize
     unit/
       file-test.ts                # Tests for src/file.ts
       file-concurrency-test.ts    # updateFile concurrency + failure-path tests (#44)
       fuzzy-match-test.ts         # Tests for src/fuzzy-match.ts
       prompt-test.ts              # Tests for src/prompt.ts
+      sample-test.ts              # Runs every sample in test/sample/ and asserts on what each call produced
+      sample-surface-test.ts      # Fails if an export, sample, or import specifier falls outside the sample contract
       object/
         get-test.ts               # Tests for object get()
         getOrSet-test.ts          # Tests for object getOrSet()
@@ -89,6 +100,18 @@ stonyx-utils/
   tsconfig.json                   # Build: src/ -> dist/
   tsconfig.test.json              # Test build: -> dist-test/
 ```
+
+## Canonical Usage Samples
+
+`test/sample/` is the canonical usage reference, one file per `exports` subpath; the README links it by absolute GitHub URL because `test/` is not in the published tarball.
+
+- Samples import `@stonyx/utils/<subpath>`, never `src/`, so they exercise the built `dist/` entries a consumer installs. Each sample exports functions only and has no top-level side effects; file samples take the directory to work in, and prompt samples take the `input`/`output` streams.
+- `test/unit/sample-test.ts` runs every sample and asserts on what each call produced: file samples in a `mkdtemp` dir, prompts through stream mocks, `sleep` under fake timers, and `FuzzyMatch` methods through `FuzzyMatch.prototype` spies. It also imports every compiled sample in a fresh process and fails on any console or stdio output, and fails if a sample changes `git status`.
+- `test/unit/sample-surface-test.ts` (copied unchanged from `@stonyx/events`) fails if a runtime export is not imported by any sample, if a sample is not imported by any `*-test.ts`, if a sample imports an unexported subpath of `@stonyx/utils` or a relative path outside `test/sample/`, or if an export subpath stops resolving to `dist/`. The export and sample coverage checks count only the imports left after TypeScript compiles the file, so `import type`, `import { type X }`, an unused import, and an import in a comment or string do not count toward them. It counts top-level exports, so `FuzzyMatch`'s methods are covered by `sample-test.ts`, not by this guard.
+- The guard's header comment is written for `@stonyx/events` and stays byte-identical to it: where it says `pnpm typecheck` and that tsx compiles the file to CommonJS, read `pnpm build:test`, which compiles it with `tsc` to ESM in `dist-test/`.
+- `pnpm build:test`, which `pnpm test` runs, type-checks the samples, including the type imports they make. Nothing requires a sample to import each type-only export.
+- The test glob is `dist-test/test/**/*-test.js`, so a sample only runs when a test imports it.
+- Adding an export means adding it to a sample.
 
 ## Package Exports
 
@@ -191,15 +214,15 @@ That is the right trade (correctness over tidiness) and the residual is disk gro
 
 ### `src/string.ts`
 
-Re-exports `pluralize` from `./plurarize.ts`.
+Re-exports `pluralize` from `./plurarize.js` (the compiled `src/plurarize.ts`).
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `kebabCaseToCamelCase` | `kebabCaseToCamelCase(str): string` | Converts `kebab-case` to `camelCase`. |
 | `kebabCaseToPascalCase` | `kebabCaseToPascalCase(str): string` | Converts `kebab-case` to `PascalCase`. |
 | `camelCaseToKebabCase` | `camelCaseToKebabCase(str): string` | Converts `camelCase` to `kebab-case`. |
-| `generateRandomString` | `generateRandomString(length?): string` | Generates random alphanumeric string (default length: 8). |
-| `pluralize` | (re-export) | Re-exported from `./plurarize.ts`. |
+| `generateRandomString` | `generateRandomString(length?): string` | Generates random alphanumeric string (default length: 8). Uses `Math.random`, so not cryptographically secure: use `crypto.randomUUID()` / `crypto.randomBytes()` from `node:crypto` for tokens, secrets or unguessable IDs. |
+| `pluralize` | (re-export) | Re-exported from `./plurarize.js`. |
 
 ### `src/fuzzy-match.ts`
 
@@ -238,7 +261,7 @@ None (`"dependencies": {}`).
 - **Clock pinning:** `sinon.useFakeTimers({ now, toFake: ['Date'] })` — `['Date']` only; faking timers as well deadlocks any test that awaits a barrier.
 - **Stream mocking:** Custom `Readable`/`Writable` streams in `prompt-test.ts`
 - **File tests:** Create temp directory in `beforeEach`, clean up in `afterEach`
-- **Run command:** `pnpm test`, which runs `build` (`tsc`), then `build:test` (`tsc -p tsconfig.test.json`), then QUnit on `dist-test/test/**/*.js`. Tests run from compiled output, so a `src/` change is only exercised after the build step
+- **Run command:** `pnpm test`, which runs `build` (`tsc`), then `build:test` (`tsc -p tsconfig.test.json`), then QUnit on `dist-test/test/**/*-test.js`. Only `*-test` files are run as tests, so samples under `test/sample/` load only when a test imports them. Tests run from compiled output, so a `src/` change is only exercised after the build step
 - **Import style:** Tests import from package exports (e.g., `@stonyx/utils/object`)
 
 ## CI/CD

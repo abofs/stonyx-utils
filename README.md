@@ -17,8 +17,11 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 |             | `copyFile`              | Copy a file, with optional overwrite.                    |
 |             | `readFile`              | Read a file (JSON optional), with missing file callback. |
 |             | `deleteFile`            | Delete a file (ignore missing optional).                 |
+|             | `deleteFileSync`        | Synchronous `deleteFile`.                                |
 |             | `deleteDirectory`       | Recursively delete a directory.                          |
 |             | `createDirectory`       | Recursively create a directory.                          |
+|             | `createReadStream`      | `fs.createReadStream` on a resolved path.                |
+|             | `createWriteStream`     | `fs.createWriteStream` on a resolved path.               |
 |             | `forEachFileImport`     | Dynamically import all JS files in a directory.          |
 |             | `fileExists`            | Check if a file exists.                                  |
 | **Object**  | `deepCopy`              | Deep clone an object or array.                           |
@@ -36,6 +39,7 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 | **Promise** | `sleep`                 | Async delay for a given number of seconds.               |
 | **Prompt**  | `confirm`               | Prompt user for y/N confirmation.                        |
 |             | `prompt`                | Prompt user for free-text input.                         |
+| **Fuzzy**   | `FuzzyMatch`            | Word-set name similarity (default export).               |
 
 ---
 
@@ -43,13 +47,14 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 
 * [Installation](#installation)
 * [Exports](#exports)
-* [Running the Test Suite](#running-the-test-suite)
+* [Canonical usage](#canonical-usage)
 * [File Utils](#file-utils)
 * [Object Utils](#object-utils)
 * [String Utils](#string-utils)
 * [Date Utils](#date-utils)
 * [Promise Utils](#promise-utils)
 * [Prompt Utils](#prompt-utils)
+* [Fuzzy Match](#fuzzy-match)
 * [License](#license)
 
 ---
@@ -80,6 +85,12 @@ There is no root export: import each category from its subpath.
 import { mergeObject, get } from '@stonyx/utils/object';
 import FuzzyMatch from '@stonyx/utils/fuzzy-match';
 ```
+
+---
+
+## Canonical usage
+
+Runnable, tested samples of every export live in [`test/sample/`](https://github.com/abofs/stonyx-utils/tree/dev/test/sample), one file per import path. They import `@stonyx/utils/<subpath>` exactly as a consumer does, and the test suite runs them against the built package.
 
 ---
 
@@ -125,6 +136,14 @@ Reads a file, optionally parsing JSON.
 Deletes a file.
 
 * `options.ignoreAccessFailure` — boolean, ignores errors if file missing.
+
+#### `deleteFileSync(filePath, options={})`
+
+Synchronous `deleteFile`, with the same `options.ignoreAccessFailure`.
+
+#### `createReadStream(filePath, options?)` / `createWriteStream(filePath, options?)`
+
+`fs.createReadStream` / `fs.createWriteStream` with `filePath` resolved against the working directory first. `options` is passed through to `fs`.
 
 #### `deleteDirectory(dir)`
 
@@ -209,9 +228,15 @@ Converts `'my-string'` → `'myString'`.
 
 Converts `'my-string'` → `'MyString'`.
 
+#### `camelCaseToKebabCase(str)`
+
+Converts `'myString'` → `'my-string'`.
+
 #### `generateRandomString(length=8)`
 
 Generates a random alphanumeric string.
+
+Uses `Math.random`, so it is **not cryptographically secure**: do not use it for tokens, secrets or IDs that must be unguessable. Use `crypto.randomUUID()` or `crypto.randomBytes()` from `node:crypto` for those.
 
 #### `pluralize(word)`
 
@@ -232,9 +257,9 @@ console.log(pluralize('box'));    // boxes
 
 ### Functions
 
-#### `getTimestamp()`
+#### `getTimestamp(date?)`
 
-Returns the current UNIX timestamp (seconds since epoch).
+Returns the UNIX timestamp (whole seconds since epoch) of `date`, or of now when no date is given.
 
 ```js
 import { getTimestamp } from '@stonyx/utils/date';
@@ -289,6 +314,32 @@ import { confirm, prompt } from '@stonyx/utils/prompt';
 
 const name = await prompt('What is your name?');
 const ok = await confirm('Proceed?');
+```
+
+---
+
+## Fuzzy Match
+
+#### `new FuzzyMatch(options={})`
+
+Matches names from two sources that spell them differently (accents, punctuation, case, stop words).
+
+* `options.stopWords` — words removed before comparing (default `[]`).
+* `options.delimiter` — separator between the two names in an entry's `name` (default `'\u00B7'`, `·`).
+* `options.threshold` — minimum score `findBestMatch` accepts (default `0.35`). Both fall back with `||`, so a falsy value (`threshold: 0`, `delimiter: ''`) gets the default; pass `0` as `findBestMatch`'s `threshold` argument instead to accept any positive score.
+
+Methods:
+
+* `normalize(name)` — strips accents and punctuation, lowercases, removes stop words.
+* `similarity(a, b)` — `1` for equal normalized names, `0.9` when one contains the other, otherwise word overlap from `0` to `1`: words of one character are ignored, an exact word counts `1` and a word that is a prefix of a word on the other side counts `0.7`, divided by the larger word count.
+* `findBestMatch(nameA, nameB, entries, threshold?)` — best `{ entry, score }` among `entries` whose `name` is `"A<delimiter>B"`, matching either order, or `null` below the threshold.
+
+```js
+import FuzzyMatch from '@stonyx/utils/fuzzy-match';
+
+const matcher = new FuzzyMatch({ stopWords: ['fc'] });
+matcher.findBestMatch('Atletico Madrid', 'Real Madrid', [{ name: 'Real Madrid · Atlético Madrid' }]);
+// { entry: { name: 'Real Madrid · Atlético Madrid' }, score: 1 }
 ```
 
 ---

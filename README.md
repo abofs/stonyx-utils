@@ -42,6 +42,7 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 ## Table of Contents
 
 * [Installation](#installation)
+* [Subpath Exports](#subpath-exports)
 * [Running the Test Suite](#running-the-test-suite)
 * [File Utils](#file-utils)
 * [Object Utils](#object-utils)
@@ -57,6 +58,27 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 
 ```bash
 npm install @stonyx/utils
+```
+
+---
+
+## Subpath Exports
+
+There is no root export: import each category from its subpath.
+
+| Import path | Exports |
+| ----------- | ------- |
+| `@stonyx/utils/file` | [File Utils](#file-utils) |
+| `@stonyx/utils/object` | [Object Utils](#object-utils) |
+| `@stonyx/utils/string` | [String Utils](#string-utils) |
+| `@stonyx/utils/date` | [Date Utils](#date-utils) |
+| `@stonyx/utils/promise` | [Promise Utils](#promise-utils) |
+| `@stonyx/utils/prompt` | [Prompt Utils](#prompt-utils) |
+| `@stonyx/utils/fuzzy-match` | `FuzzyMatch` (default export): word-set name similarity |
+
+```js
+import { mergeObject, get } from '@stonyx/utils/object';
+import FuzzyMatch from '@stonyx/utils/fuzzy-match';
 ```
 
 ---

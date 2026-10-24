@@ -6,6 +6,7 @@
 import QUnit from 'qunit';
 import sinon from 'sinon';
 import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -50,26 +51,25 @@ module('[Unit] Samples', function (hooks) {
 
   test('importing a sample prints nothing and runs nothing', function (assert) {
     // A fresh process, so the module cache this suite already filled cannot hide an import-time effect.
-    const sampleDir = join(process.cwd(), 'dist-test', 'test', 'sample');
+    // The list comes from the .ts sources, so a stale compiled file left in dist-test/ is not imported.
+    const sources = readdirSync(join(process.cwd(), 'test', 'sample'), { recursive: true, encoding: 'utf8' }).filter((file) => file.endsWith('.ts'));
+    const compiled = sources.map((file) => join(process.cwd(), 'dist-test', 'test', 'sample', file.replace(/\.ts$/, '.js')));
     const script = `
-      import { readdirSync } from 'node:fs';
-      import { join } from 'node:path';
       import { pathToFileURL } from 'node:url';
       const calls = [];
-      for (const method of ['log', 'info', 'warn', 'error', 'debug', 'trace']) console[method] = (...args) => calls.push(method);
+      for (const method of ['log', 'info', 'warn', 'error', 'debug', 'trace']) console[method] = () => calls.push(method);
       const write = process.stdout.write.bind(process.stdout);
       process.stdout.write = () => (calls.push('stdout'), true);
       process.stderr.write = () => (calls.push('stderr'), true);
-      const dir = process.argv[1];
-      const files = readdirSync(dir).filter((file) => file.endsWith('.js'));
-      for (const file of files) await import(pathToFileURL(join(dir, file)).href);
-      write(JSON.stringify({ files: files.length, calls }));
+      const files = process.argv.slice(1);
+      for (const file of files) await import(pathToFileURL(file).href);
+      write(JSON.stringify({ calls }));
     `;
     const result = JSON.parse(
-      execFileSync(process.execPath, ['--input-type=module', '-e', script, sampleDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
-    ) as { files: number; calls: string[] };
+      execFileSync(process.execPath, ['--input-type=module', '-e', script, ...compiled], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
+    ) as { calls: string[] };
 
-    assert.strictEqual(result.files, 7, 'all seven compiled samples were imported');
+    assert.ok(sources.length > 0, `found ${sources.length} sample source(s)`);
     assert.deepEqual(result.calls, [], 'no console or stdio output at import');
   });
 

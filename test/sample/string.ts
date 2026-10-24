@@ -18,7 +18,12 @@ export function convertCase(): { camel: string; pascal: string; kebab: string } 
   };
 }
 
-/** generateRandomString returns alphanumeric characters, 8 by default. */
+/**
+ * generateRandomString returns alphanumeric characters, 8 by default.
+ * It uses Math.random and is not cryptographically secure: never use it for
+ * tokens, secrets or unguessable IDs. Use crypto.randomUUID() or
+ * crypto.randomBytes() from node:crypto for those.
+ */
 export function randomIds(): { short: string; long: string } {
   return {
     short: generateRandomString(),

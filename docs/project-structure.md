@@ -108,6 +108,7 @@ stonyx-utils/
 - Samples import `@stonyx/utils/<subpath>`, never `src/`, so they exercise the built `dist/` entries a consumer installs. Each sample exports functions only and has no top-level side effects; file samples take the directory to work in, and prompt samples take the `input`/`output` streams.
 - `test/unit/sample-test.ts` runs every sample and asserts on what each call produced: file samples in a `mkdtemp` dir, prompts through stream mocks, `sleep` under fake timers, and `FuzzyMatch` methods through `FuzzyMatch.prototype` spies. It also imports every compiled sample in a fresh process and fails on any console or stdio output, and fails if a sample changes `git status`.
 - `test/unit/sample-surface-test.ts` (copied unchanged from `@stonyx/events`) fails if a runtime export is not imported by any sample, if a sample is not imported by any `*-test.ts`, if a sample imports an unexported subpath of `@stonyx/utils` or a relative path outside `test/sample/`, or if an export subpath stops resolving to `dist/`. The export and sample coverage checks count only the imports left after TypeScript compiles the file, so `import type`, `import { type X }`, an unused import, and an import in a comment or string do not count toward them. It counts top-level exports, so `FuzzyMatch`'s methods are covered by `sample-test.ts`, not by this guard.
+- The guard's header comment is written for `@stonyx/events` and stays byte-identical to it: where it says `pnpm typecheck` and that tsx compiles the file to CommonJS, read `pnpm build:test`, which compiles it with `tsc` to ESM in `dist-test/`.
 - `pnpm build:test`, which `pnpm test` runs, type-checks the samples, including the type imports they make. Nothing requires a sample to import each type-only export.
 - The test glob is `dist-test/test/**/*-test.js`, so a sample only runs when a test imports it.
 - Adding an export means adding it to a sample.
@@ -220,7 +221,7 @@ Re-exports `pluralize` from `./plurarize.js` (the compiled `src/plurarize.ts`).
 | `kebabCaseToCamelCase` | `kebabCaseToCamelCase(str): string` | Converts `kebab-case` to `camelCase`. |
 | `kebabCaseToPascalCase` | `kebabCaseToPascalCase(str): string` | Converts `kebab-case` to `PascalCase`. |
 | `camelCaseToKebabCase` | `camelCaseToKebabCase(str): string` | Converts `camelCase` to `kebab-case`. |
-| `generateRandomString` | `generateRandomString(length?): string` | Generates random alphanumeric string (default length: 8). |
+| `generateRandomString` | `generateRandomString(length?): string` | Generates random alphanumeric string (default length: 8). Uses `Math.random`, so not cryptographically secure: use `crypto.randomUUID()` / `crypto.randomBytes()` from `node:crypto` for tokens, secrets or unguessable IDs. |
 | `pluralize` | (re-export) | Re-exported from `./plurarize.js`. |
 
 ### `src/fuzzy-match.ts`

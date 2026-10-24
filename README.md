@@ -236,6 +236,8 @@ Converts `'myString'` → `'my-string'`.
 
 Generates a random alphanumeric string.
 
+Uses `Math.random`, so it is **not cryptographically secure**: do not use it for tokens, secrets or IDs that must be unguessable. Use `crypto.randomUUID()` or `crypto.randomBytes()` from `node:crypto` for those.
+
 #### `pluralize(word)`
 
 Returns the plural form of an English noun, handling irregulars and uncountable nouns.
@@ -324,12 +326,12 @@ Matches names from two sources that spell them differently (accents, punctuation
 
 * `options.stopWords` — words removed before comparing (default `[]`).
 * `options.delimiter` — separator between the two names in an entry's `name` (default `'\u00B7'`, `·`).
-* `options.threshold` — minimum score `findBestMatch` accepts (default `0.35`).
+* `options.threshold` — minimum score `findBestMatch` accepts (default `0.35`). Both fall back with `||`, so a falsy value (`threshold: 0`, `delimiter: ''`) gets the default; pass `0` as `findBestMatch`'s `threshold` argument instead to accept any positive score.
 
 Methods:
 
 * `normalize(name)` — strips accents and punctuation, lowercases, removes stop words.
-* `similarity(a, b)` — `1` for equal normalized names, `0.9` when one contains the other, otherwise word overlap from `0` to `1`.
+* `similarity(a, b)` — `1` for equal normalized names, `0.9` when one contains the other, otherwise word overlap from `0` to `1`: words of one character are ignored, an exact word counts `1` and a word that is a prefix of a word on the other side counts `0.7`, divided by the larger word count.
 * `findBestMatch(nameA, nameB, entries, threshold?)` — best `{ entry, score }` among `entries` whose `name` is `"A<delimiter>B"`, matching either order, or `null` below the threshold.
 
 ```js

@@ -25,7 +25,7 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 |             | `objToJson`             | Convert object to formatted JSON string.                 |
 |             | `makeArray`             | Wrap a value in an array.                                |
 |             | `mergeObject`           | Deep merge two objects (ignore new keys optional).       |
-|             | `get`                   | Get nested property safely via dot path.                 |
+|             | `get`                   | Nested property by dot path (`undefined` if absent).     |
 |             | `getOrSet`              | Get or set value in a Map.                               |
 | **String**  | `kebabCaseToCamelCase`  | Convert kebab-case to camelCase.                         |
 |             | `kebabCaseToPascalCase` | Convert kebab-case to PascalCase.                        |
@@ -42,6 +42,7 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 ## Table of Contents
 
 * [Installation](#installation)
+* [Exports](#exports)
 * [Running the Test Suite](#running-the-test-suite)
 * [File Utils](#file-utils)
 * [Object Utils](#object-utils)
@@ -57,6 +58,27 @@ Utilities module for the Stonyx Framework. Provides helpers for files, objects, 
 
 ```bash
 npm install @stonyx/utils
+```
+
+---
+
+## Exports
+
+There is no root export: import each category from its subpath.
+
+| Import path | Exports |
+| ----------- | ------- |
+| `@stonyx/utils/file` | [File Utils](#file-utils) |
+| `@stonyx/utils/object` | [Object Utils](#object-utils) |
+| `@stonyx/utils/string` | [String Utils](#string-utils) |
+| `@stonyx/utils/date` | [Date Utils](#date-utils) |
+| `@stonyx/utils/promise` | [Promise Utils](#promise-utils) |
+| `@stonyx/utils/prompt` | [Prompt Utils](#prompt-utils) |
+| `@stonyx/utils/fuzzy-match` | `FuzzyMatch` (default export): word-set name similarity |
+
+```js
+import { mergeObject, get } from '@stonyx/utils/object';
+import FuzzyMatch from '@stonyx/utils/fuzzy-match';
 ```
 
 ---
@@ -167,7 +189,7 @@ Deep merges two objects.
 
 #### `get(obj, path)`
 
-Safely gets a nested property using dot notation. Returns `null` if path not found.
+Gets a nested property using dot notation. Returns `undefined` if any segment along the path is `undefined` (a missing key, or a primitive intermediate such as `get({ a: 1 }, 'a.b')`). Only `undefined` is guarded: a `null` intermediate segment throws a `TypeError` (`get({ a: null }, 'a.b')`), and a `null` final value is returned as `null`.
 
 #### `getOrSet(map, key, defaultValue)`
 

@@ -7,14 +7,14 @@
 - [File Structure](#file-structure)
 - [Package Exports](#package-exports)
 - [Module Documentation](#module-documentation)
-  - [date.js](#srcdate.js)
-  - [file.js](#srcfile.js)
+  - [date.ts](#srcdatets)
+  - [file.ts](#srcfilets)
     - [Swap file lifecycle](#swap-file-lifecycle)
-  - [object.js](#srcobject.js)
-  - [plurarize.js](#srcplurarize.js)
-  - [promise.js](#srcpromise.js)
-  - [prompt.js](#srcprompt.js)
-  - [string.js](#srcstring.js)
+  - [object.ts](#srcobjectts)
+  - [plurarize.ts](#srcplurarizets)
+  - [promise.ts](#srcpromisets)
+  - [prompt.ts](#srcpromptts)
+  - [string.ts](#srcstringts)
   - [fuzzy-match.ts](#srcfuzzy-matchts)
 - [Downstream Consumers](#downstream-consumers)
 - [Dependencies](#dependencies)
@@ -58,25 +58,27 @@ stonyx-utils/
       ci.yml                      # CI on PRs to dev/main (reusable workflow)
       publish.yml                 # NPM publish on push to main / manual dispatch
   src/
-    date.js                       # Date utilities
-    file.js                       # File system utilities
-    object.js                     # Object/array utilities
-    plurarize.js                  # Pluralization engine (NOTE: filename typo)
-    promise.js                    # Promise utilities
-    prompt.js                     # CLI prompt utilities
-    string.js                     # String transformation utilities
+    date.ts                       # Date utilities
+    file.ts                       # File system utilities
+    object.ts                     # Object/array utilities
+    plurarize.ts                  # Pluralization engine (NOTE: filename typo)
+    promise.ts                    # Promise utilities
+    prompt.ts                     # CLI prompt utilities
+    string.ts                     # String transformation utilities
+    fuzzy-match.ts                # FuzzyMatch word-set name similarity (default export)
   test/
     unit/
-      file-test.js                # Tests for src/file.js
-      file-concurrency-test.js    # updateFile concurrency + failure-path tests (#44)
-      prompt-test.js              # Tests for src/prompt.js
+      file-test.ts                # Tests for src/file.ts
+      file-concurrency-test.ts    # updateFile concurrency + failure-path tests (#44)
+      fuzzy-match-test.ts         # Tests for src/fuzzy-match.ts
+      prompt-test.ts              # Tests for src/prompt.ts
       object/
-        get-test.js               # Tests for object get()
-        getOrSet-test.js          # Tests for object getOrSet()
-        object-test.js            # Tests for mergeObject()
+        get-test.ts               # Tests for object get()
+        getOrSet-test.ts          # Tests for object getOrSet()
+        object-test.ts            # Tests for mergeObject()
       string/
-        plurarize-test.js         # Tests for pluralize (NOTE: filename typo)
-        string-test.js            # Tests for string conversion functions
+        plurarize-test.ts         # Tests for pluralize (NOTE: filename typo)
+        string-test.ts            # Tests for string conversion functions
   .gitignore
   .npmignore                      # Excludes test/ and .nvmrc from published package
   .nvmrc                          # Node v24.13.0
@@ -84,33 +86,35 @@ stonyx-utils/
   README.md
   package.json
   pnpm-lock.yaml
+  tsconfig.json                   # Build: src/ -> dist/
+  tsconfig.test.json              # Test build: -> dist-test/
 ```
 
 ## Package Exports
 
-Defined in `package.json` under `"exports"`:
+Defined in `package.json` under `"exports"`. Each subpath resolves to the compiled `dist/<name>.js` (with `dist/<name>.d.ts` types); the source column is the file `tsc` builds it from.
 
-| Import path            | File             |
+| Import path            | Source           |
 | ---------------------- | ---------------- |
-| `@stonyx/utils/date`   | `src/date.js`    |
-| `@stonyx/utils/object` | `src/object.js`  |
-| `@stonyx/utils/file`   | `src/file.js`    |
-| `@stonyx/utils/promise`| `src/promise.js` |
-| `@stonyx/utils/prompt` | `src/prompt.js`  |
-| `@stonyx/utils/string` | `src/string.js`  |
+| `@stonyx/utils/date`   | `src/date.ts`    |
+| `@stonyx/utils/object` | `src/object.ts`  |
+| `@stonyx/utils/file`   | `src/file.ts`    |
+| `@stonyx/utils/promise`| `src/promise.ts` |
+| `@stonyx/utils/prompt` | `src/prompt.ts`  |
+| `@stonyx/utils/string` | `src/string.ts`  |
 | `@stonyx/utils/fuzzy-match` | `src/fuzzy-match.ts` |
 
 There is no root (`.`) export and no barrel file: consumers import each category from its subpath. Every subpath exports named functions except `fuzzy-match`, whose default export is the `FuzzyMatch` class.
 
 ## Module Documentation
 
-### `src/date.js`
+### `src/date.ts`
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `getTimestamp` | `getTimestamp(dateObject?: Date): number` | Returns UNIX timestamp in seconds. If `dateObject` is provided, uses that date; otherwise uses `Date.now()`. |
 
-### `src/file.js`
+### `src/file.ts`
 
 Imports: `@stonyx/utils/string`, `@stonyx/utils/object`, `fs`, `path`, `crypto`
 
@@ -155,7 +159,7 @@ At any crash cadence slower than one per second — the ordinary case — the tw
 
 That is the right trade (correctness over tidiness) and the residual is disk growth, not breakage: nothing in the `@stonyx/*` ecosystem enumerates these files. `@stonyx/orm` opens collections by explicit `{key}.json` path rather than reading the directory, and `forEachFileImport` filters on `.js`/`.ts`. The cost lands on consumers whose data directory is scanned by something outside the framework — an app that runs `git add` over its database directory will commit an orphan, since no `.gitignore` in this ecosystem carries a `*.temp-*` pattern. Sweeping or ignoring `*.temp-*` siblings of a target is safe and is the consumer's call to make.
 
-### `src/object.js`
+### `src/object.ts`
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
@@ -163,31 +167,31 @@ That is the right trade (correctness over tidiness) and the residual is disk gro
 | `objToJson` | `objToJson(obj, format?): string` | Stringifies object with formatting (default: tab). |
 | `makeArray` | `makeArray(obj): Array` | Wraps value in array if not already an array. |
 | `mergeObject` | `mergeObject(obj1, obj2, options?): object` | Deep merges two objects. `options.ignoreNewKeys` skips keys not in `obj1`. Throws on array input. |
-| `get` | `get(obj, path): any\|undefined` | Safely traverses dot-notation path. Returns `undefined` if any segment is `undefined`. Invalid arguments (wrong arity, falsy `obj`, non-string `path`) log via `console.error` and return `undefined`; it never throws. |
+| `get` | `get(obj, path): any\|undefined` | Traverses a dot-notation path. Returns `undefined` as soon as a segment is `undefined` (so a missing key or a primitive intermediate such as `get({a:1}, 'a.b')` gives `undefined`). Only `undefined` is guarded: a `null` intermediate segment throws a `TypeError` (`get({a:null}, 'a.b')`), and a `null` final value is returned as `null`. Invalid arguments (wrong arity, falsy `obj`, non-string `path`) log via `console.error` and return `undefined`. |
 | `getOrSet` | `getOrSet(map, key, defaultValue): any` | Gets from a `Map`, or sets `defaultValue` (or calls it if function) when key is missing. Throws if not a `Map`. |
 
-### `src/plurarize.js`
+### `src/plurarize.ts`
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `default` (pluralize) | `pluralize(word): string` | Returns plural form of an English noun. Handles irregular nouns, uncountable nouns, and rule-based suffixes (s/x/ch/sh, y, f/fe, o, z). Preserves casing. |
 
-### `src/promise.js`
+### `src/promise.ts`
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `sleep` | `sleep(seconds): Promise<void>` | Async delay for the given number of seconds. |
 
-### `src/prompt.js`
+### `src/prompt.ts`
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `confirm` | `confirm(question, options?): Promise<boolean>` | Prompts user with `(y/N)` and returns `true` only if input is `"y"` (case-insensitive). Options: `{ input, output }` for custom streams. Rejects if no TTY and no custom `input`. |
 | `prompt` | `prompt(question, options?): Promise<string>` | Prompts user with a question and returns trimmed input. Options: `{ input, output }` for custom streams. Rejects if no TTY and no custom `input`. |
 
-### `src/string.js`
+### `src/string.ts`
 
-Re-exports `pluralize` from `./plurarize.js`.
+Re-exports `pluralize` from `./plurarize.ts`.
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
@@ -195,7 +199,7 @@ Re-exports `pluralize` from `./plurarize.js`.
 | `kebabCaseToPascalCase` | `kebabCaseToPascalCase(str): string` | Converts `kebab-case` to `PascalCase`. |
 | `camelCaseToKebabCase` | `camelCaseToKebabCase(str): string` | Converts `camelCase` to `kebab-case`. |
 | `generateRandomString` | `generateRandomString(length?): string` | Generates random alphanumeric string (default length: 8). |
-| `pluralize` | (re-export) | Re-exported from `./plurarize.js`. |
+| `pluralize` | (re-export) | Re-exported from `./plurarize.ts`. |
 
 ### `src/fuzzy-match.ts`
 
@@ -203,7 +207,7 @@ Default export: `class FuzzyMatch`. Word-set similarity scoring for reconciling 
 
 | Member | Signature | Description |
 | ------ | --------- | ----------- |
-| `constructor` | `new FuzzyMatch({ stopWords?, delimiter?, threshold? })` | Defaults: `stopWords` `[]`, `delimiter` `'\u00B7'` (middle dot), `threshold` `0.35`. |
+| `constructor` | `new FuzzyMatch({ stopWords?, delimiter?, threshold? })` | Defaults: `stopWords` `[]`, `delimiter` `'\u00B7'` (middle dot), `threshold` `0.35`. Each option falls back with `\|\|`, so a falsy value (`threshold: 0`, `delimiter: ''`) is replaced by the default. |
 | `normalize` | `normalize(name): string` | NFD-normalizes and strips combining marks, lowercases, replaces non-alphanumerics with spaces, removes whole-word stop words, collapses whitespace. |
 | `similarity` | `similarity(a, b): number` | `1.0` if the normalized strings are equal, `0.9` if one contains the other, `0` if either is empty. Otherwise word-set overlap (words of length > 1): an exact word counts 1, a word that is a prefix of the other side's word (either direction) counts 0.7; the sum is divided by the larger set's size. |
 | `findBestMatch` | `findBestMatch(nameA, nameB, entries, threshold?): { entry, score } \| null` | Each `entry.name` is split on `delimiter` and must have exactly two parts (others are skipped). Scores the pair in both orders, keeps the best, and returns it only if `score >= threshold` (argument, else the instance default). |
@@ -229,10 +233,10 @@ None (`"dependencies": {}`).
 ## Test Patterns
 
 - **Framework:** QUnit with nested `module()` blocks
-- **Mocking:** Sinon spies/stubs (used for `console.error` spying in `get-test.js`, stub factories in `getOrSet-test.js`)
-- **Filesystem fault injection:** `sinon.stub(fsp, 'writeFile' | 'rename' | 'unlink')` in `file-concurrency-test.js`. `dist/file.js` resolves these off the shared `fs.promises` object at call time, so stubbing the property intercepts production without a production seam. Always stub via sinon rather than assigning — `fs.promises` is process-global, QUnit runs one process, and the `sinon.restore()` in `afterEach` is what keeps a leaked patch from surfacing in an unrelated suite.
+- **Mocking:** Sinon spies/stubs (used for `console.error` spying in `get-test.ts`, stub factories in `getOrSet-test.ts`)
+- **Filesystem fault injection:** `sinon.stub(fsp, 'writeFile' | 'rename' | 'unlink')` in `file-concurrency-test.ts`. `dist/file.js` resolves these off the shared `fs.promises` object at call time, so stubbing the property intercepts production without a production seam. Always stub via sinon rather than assigning — `fs.promises` is process-global, QUnit runs one process, and the `sinon.restore()` in `afterEach` is what keeps a leaked patch from surfacing in an unrelated suite.
 - **Clock pinning:** `sinon.useFakeTimers({ now, toFake: ['Date'] })` — `['Date']` only; faking timers as well deadlocks any test that awaits a barrier.
-- **Stream mocking:** Custom `Readable`/`Writable` streams in `prompt-test.js`
+- **Stream mocking:** Custom `Readable`/`Writable` streams in `prompt-test.ts`
 - **File tests:** Create temp directory in `beforeEach`, clean up in `afterEach`
 - **Run command:** `pnpm test`, which runs `build` (`tsc`), then `build:test` (`tsc -p tsconfig.test.json`), then QUnit on `dist-test/test/**/*.js`. Tests run from compiled output, so a `src/` change is only exercised after the build step
 - **Import style:** Tests import from package exports (e.g., `@stonyx/utils/object`)

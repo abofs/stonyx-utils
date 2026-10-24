@@ -47,7 +47,7 @@
 
 ```
 stonyx-utils/
-  .claude/                        # Claude project memory
+  .claude/                        # Agent pointer only
     CLAUDE.md                     # Agent entry point
   docs/                           # Human-facing documentation
     index.md                      # Documentation entry point
